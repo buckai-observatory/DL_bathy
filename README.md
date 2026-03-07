@@ -96,7 +96,7 @@ Place the following files/folders next to the scripts:
 project/
 ├── step1_splitting.py
 ├── step2_train_test.py
-├── reference.tif   ← LiDAR reference GeoTIFF
+├── reference.tif   ← Ground Truth GeoTIFF
 └── sentinel_images_L2A/
     └── all_bands/
         ├── cloudfree_l2a/            ← Cloud-free Sentinel-2 scenes (*.tif)
