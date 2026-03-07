@@ -24,7 +24,6 @@ BibTeX (preprint / under review):
 }
 ```
 
-> **Note:** Once the paper is accepted and published, please update the citation above with the journal name, volume, pages, and DOI.
 
 ---
 
