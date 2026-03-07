@@ -19,7 +19,7 @@ BibTeX (preprint / under review):
                of Machine Learning and Deep Learning for Transferable
                Satellite-Derived Bathymetry},
   journal   = {(under review)},
-  year      = {2025},
+  year      = {2026},
   note      = {School of Earth Sciences, The Ohio State University}
 }
 ```
