@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use DL_bathy in your research, please cite it using the metadata below."
+title: "DL_bathy: A deep-learning pipeline for satellite-derived bathymetry from Sentinel-2 imagery"
+authors:
+  - family-names: Hsu
+    given-names: Hsiao-Jou
+    email: hsu.771@osu.edu
+    affiliation: "The Ohio State University -- School of Earth Sciences"
+    orcid: "https://orcid.org/0009-0008-5863-3229"
+  - family-names: Moortgat
+    given-names: Joachim
+    email: moortgat.1@osu.edu
+    affiliation: "The Ohio State University -- School of Earth Sciences & BuckAI Observatory"
+    orcid: "https://orcid.org/0000-0002-0259-3597"
+repository-code: "https://github.com/buckai-observatory/DL_bathy"
+url: "https://github.com/buckai-observatory/DL_bathy"
+license: MIT
+version: "0.1.0"
+date-released: "2026-08-08"
+keywords:
+  - remote sensing
+  - earth observation
+  - satellite-derived bathymetry
+  - Sentinel-2
+  - deep learning
+  - DeepLabV3+
+  - LiDAR
+  - shallow water
+abstract: >-
+  DL_bathy is an open-source two-step pipeline for training a deep learning
+  model (DeepLabV3+ with a configurable backbone) to estimate shallow-water
+  bathymetry from Sentinel-2 multispectral imagery, using bathymetric
+  measurements (e.g. airborne LiDAR) as ground truth. Step 1 prepares,
+  aligns, splits, balances, and augments training patches from Sentinel-2
+  scenes and reference depth data; Step 2 trains the model, evaluates it on
+  a held-out test set, and produces per-patch and aggregate accuracy
+  metrics.
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Hsu
+      given-names: Hsiao-Jou
+      orcid: "https://orcid.org/0009-0008-5863-3229"
+    - family-names: Moortgat
+      given-names: Joachim
+      orcid: "https://orcid.org/0000-0002-0259-3597"
+  title: "From Local Training to Large-Scale Mapping: A Comparative Assessment of Machine Learning and Deep Learning for Transferable Satellite-Derived Bathymetry"
+  journal: "Remote Sensing"
+  volume: 18
+  issue: 11
+  year: 2026
+  doi: "10.3390/rs18111768"
+  url: "https://www.mdpi.com/2072-4292/18/11/1768"
