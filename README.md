@@ -1,6 +1,16 @@
 # Satellite-Derived Bathymetry (SDB) — Deep Learning Pipeline
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A two-step pipeline for training a deep learning model to estimate shallow-water bathymetry from Sentinel-2 multispectral imagery using available bathymetric measurements as ground truth.
+
+---
+
+## Data availability
+
+`Ground_Truth.zip` contains open bathymetry ground truth (Great Barrier Reef).
+Confidential/proprietary data used elsewhere in the associated paper has been
+removed and is not included in this repository.
 
 ---
 
@@ -8,9 +18,9 @@ A two-step pipeline for training a deep learning model to estimate shallow-water
 
 This code was developed to support the following paper. If you use this code or build upon it, please cite:
 
-> Hsu, H.-J., & Moortgat, J. (under review). *From Local Training to Large-Scale Mapping: A Comparative Assessment of Machine Learning and Deep Learning for Transferable Satellite-Derived Bathymetry*. School of Earth Sciences, The Ohio State University.
+> Hsu, H.-J., & Moortgat, J. (2026). *From Local Training to Large-Scale Mapping: A Comparative Assessment of Machine Learning and Deep Learning for Transferable Satellite-Derived Bathymetry*. Remote Sensing, 18(11), 1768. https://doi.org/10.3390/rs18111768
 
-BibTeX (preprint / under review):
+BibTeX:
 
 ```bibtex
 @article{hsu_moortgat_sdb,
@@ -18,9 +28,13 @@ BibTeX (preprint / under review):
   title     = {From Local Training to Large-Scale Mapping: A Comparative Assessment
                of Machine Learning and Deep Learning for Transferable
                Satellite-Derived Bathymetry},
-  journal   = {(under review)},
+  journal   = {Remote Sensing},
+  volume    = {18},
+  number    = {11},
+  pages     = {1768},
   year      = {2026},
-  note      = {School of Earth Sciences, The Ohio State University}
+  doi       = {10.3390/rs18111768},
+  publisher = {MDPI}
 }
 ```
 
@@ -214,3 +228,20 @@ DataParallel is enabled automatically when multiple CUDA GPUs are detected. On S
 - **Data leakage**: Use `split_strategy = 'consistent_spatial'` (default) to ensure patches from the same geographic location are always assigned to the same split.
 - **Log scaling**: If `Logcube = True` in Step 1, set `scaling_method = "Log_band"` in Step 2 (no additional scaling is applied — the log transform was already applied to the saved patches).
 - **Tide correction**: If DTU23 is unavailable, set `tide_grid = np.zeros_like(resampled_lidar)` in Step 1 to skip tidal correction.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report bugs, request
+features, and submit pull requests. Participation is governed by our
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Citing this software
+
+If you use this code, please cite it — see [CITATION.cff](CITATION.cff) or
+the Citation section above.
