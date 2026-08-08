@@ -215,6 +215,23 @@ console_output_step2.log
 | `swf` | **Smooth Weight Function** — depth-weighted RMSE. Shallow pixels receive higher weight via `w = 1 + β·exp(−|Z|/Z₀)`. Controlled by `SWF_beta` and `SWF_Z0`. |
 | `huber` | Smooth L1 loss — L2 for small errors, L1 for outliers |
 
+These are implemented in [`losses.py`](losses.py), independent of the rest
+of `step2_train_test.py`, so they can be unit-tested without the GDAL / GEE
+dependencies used elsewhere in the pipeline.
+
+---
+
+## Testing
+
+```bash
+pip install pytest torch
+pytest tests/ -v
+```
+
+Tests cover `losses.py` only (no GDAL/GEE/DTU23 required) and run
+automatically on every push and pull request via GitHub Actions
+(`.github/workflows/tests.yml`).
+
 ---
 
 ## Multi-GPU Training
