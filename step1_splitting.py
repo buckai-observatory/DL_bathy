@@ -3,14 +3,22 @@
 step1_patch_extraction.py
 =========================
 Prepares satellite-derived bathymetry training data by:
+  - Fetching Sentinel-2 L2A scenes (with SCL cloud/water mask) over the
+    AOI + time window via the geoai-datacubes package -- OR reading
+    pre-downloaded scenes from disk (`DATA_SOURCE = 'local_scenes'`)
   - Aligning Sentinel-2 imagery with LiDAR ground truth
-  - Fetching cloud/water masks via Google Earth Engine (GEE)
+  - Deriving cloud/water masks from the SCL band (class 6 = water)
   - Generating tide correction grids using the DTU23 tidal model
   - Extracting, splitting, (optionally) balancing, and augmenting image patches
   - Saving patches as GeoTIFFs with 14 bands:
-      Bands 1–12 : Sentinel-2 reflectance
+      Bands 1-12 : Sentinel-2 reflectance
       Band 13    : LiDAR depth (metres)
       Band 14    : Validity mask (1=valid, 0=invalid)
+
+Earlier versions of this script fetched the cloud/water mask via Google
+Earth Engine and required users to pre-download the Sentinel-2 imagery
+separately. The current default drops both dependencies; the historical
+GEE code path lives in git history if needed.
 
 Splitting behaviour
 -------------------
@@ -47,7 +55,6 @@ from osgeo import gdal
 import rasterio
 from rasterio.warp import reproject, Resampling
 from rasterio.transform import Affine
-import ee
 from skimage.transform import resize
 import sys
 
@@ -55,13 +62,41 @@ import sys
 # USER CONFIGURATION
 # =============================================================================
 
-# --- Google Earth Engine ---
-# Replace with your own GEE project ID (e.g. 'ee-your-username')
-GEE_PROJECT_ID = 'ee-your-project-id'   # <-- replace with your GEE project ID
-
 # --- Sentinel-2 processing level ---
-Sentinel2_level = 'L2A'   # 'L1C' or 'L2A'
-SLC             = 'on'    # 'on'  → use GEE water/cloud mask; 'off' → skip
+Sentinel2_level = 'L2A'   # 'L1C' or 'L2A' (geoai-datacubes path is L2A-only)
+
+# --- Data acquisition source -------------------------------------------------
+# 'geoai_datacubes' (default): auto-fetch Sentinel-2 L2A scenes over the AOI
+#                              and time window using the geoai-datacubes
+#                              package. No credentials, no manual downloads.
+#                              Requires: pip install geoai-datacubes
+#
+# 'local_scenes':              bring-your-own pre-downloaded scenes. Fast-
+#                              start path for reviewers who already have a
+#                              set of matched S2 L2A scenes on disk (e.g.
+#                              from an earlier geoai-datacubes run or a
+#                              custom downloader). Each scene must be a
+#                              13-band GeoTIFF with:
+#                                Bands 1-12 = B01, B02, B03, B04, B05, B06,
+#                                             B07, B08, B8A, B09, B11, B12
+#                                Band 13    = SCL (L2A Scene Classification)
+#                              This matches what geoai-datacubes writes by
+#                              default; other download tools that omit SCL
+#                              are not supported by local_scenes mode.
+DATA_SOURCE = 'geoai_datacubes'
+
+# --- AOI + time range (used only when DATA_SOURCE == 'geoai_datacubes') -----
+# WGS84 bounding box: (lon_min, lat_min, lon_max, lat_max).
+# Default: Great Barrier Reef northern site (S2 tile T55LCE) matching the
+# ground-truth GeoTIFFs shipped in `Ground_Truth.zip`.
+AOI                = [145.14, -14.56, 145.66, -14.26]
+TIME_RANGE         = ('2020-06-01', '2020-09-30')   # austral dry season 2020
+MAX_CLOUD_COVERAGE = 0.20                            # scene-level cloud filter
+FETCH_RESOLUTION_M = 10                              # matches S2 native 10 m
+
+# --- Pre-downloaded scenes (used only when DATA_SOURCE == 'local_scenes') ---
+# Directory or glob pointing at 13-band L2A GeoTIFFs (see contract above).
+LOCAL_SCENES_DIR = './sentinel_images_L2A/'
 
 # --- LiDAR reference file ---
 # Path to the co-registered LiDAR GeoTIFF used as ground truth.
@@ -161,23 +196,102 @@ if nodata_value is not None:
     lidar_grid[lidar_grid == nodata_value] = np.nan
 lidar_grid -= rough_mean_sea_surface
 
-# --- Discover Sentinel-2 files ---
+# --- Sentinel-2 acquisition helpers ------------------------------------------
+# Two helpers replace the old GEE fetch_water_mask() flow:
+#   * _fetch_scenes_via_geoai_datacubes: pulls every S2 L2A scene over the
+#     AOI + time_range through the geoai-datacubes package. Each returned
+#     file is a 13-band GeoTIFF: bands 1-12 = spectral, band 13 = SCL.
+#   * _scl_water_mask_from_scene: reads the SCL band (13) from a scene and
+#     returns a binary non-water mask (0 = water pixel, 1 = everything
+#     else). Deliberately mirrors the semantics of the old GEE call so the
+#     downstream masking code did not need to change.
+
+_S2_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
+              "B8A", "B09", "B11", "B12", "SCL"]
+
+
+def _fetch_scenes_via_geoai_datacubes(aoi, time_range, max_cloud, res, out_dir):
+    """Fetch every Sentinel-2 L2A scene over AOI + time_range via
+    geoai-datacubes. Returns a list of paths to 13-band GeoTIFFs
+    (B01-B12 + SCL) on the shared local-UTM grid."""
+    try:
+        from geoai_datacubes.fetch import fetch_sentinel_data
+    except ImportError as exc:
+        raise ImportError(
+            "DATA_SOURCE='geoai_datacubes' requires the geoai-datacubes "
+            "package. Install with `pip install geoai-datacubes` (see "
+            "https://github.com/buckai-observatory/geoai-datacubes). "
+            "Alternatively set DATA_SOURCE='local_scenes' and point "
+            "LOCAL_SCENES_DIR at a folder of 13-band L2A GeoTIFFs.") from exc
+
+    os.makedirs(out_dir, exist_ok=True)
+    fetch_sentinel_data(
+        "Sentinel-2",
+        bands=_S2_BANDS,
+        time_range=time_range,
+        roi=aoi,
+        resolution=res,
+        save_folder=out_dir,
+        max_cloud_coverage=max_cloud,
+        provider="auto",
+    )
+    scenes = sorted(glob.glob(
+        os.path.join(out_dir, "Sentinel-2_*", "Sentinel-2_full_size.tiff")))
+    if not scenes:
+        raise RuntimeError(
+            f"geoai-datacubes returned no scenes for AOI={aoi}, "
+            f"time_range={time_range}, max_cloud={max_cloud}. Widen the "
+            "time range or raise MAX_CLOUD_COVERAGE.")
+    return scenes
+
+
+def _scl_water_mask_from_scene(scene_path):
+    """Read SCL from a fetched (or pre-downloaded) 13-band S2 scene and
+    return a binary non-water mask: 0 = water pixel, 1 = everything else.
+    Replaces the old GEE fetch_water_mask() call."""
+    with rasterio.open(scene_path) as src:
+        if src.count < 13:
+            raise RuntimeError(
+                f"{scene_path}: expected 13-band L2A scene (bands 1-12 = "
+                f"spectral + band 13 = SCL), got {src.count} bands. This "
+                "usually means the scene was downloaded by a tool that "
+                "did not include the SCL band -- either re-fetch via "
+                "geoai-datacubes (DATA_SOURCE='geoai_datacubes') or "
+                "regenerate the scene with SCL included.")
+        scl = src.read(13)
+    # SCL code 6 = water. Non-water becomes 1; water becomes 0.
+    return (scl != 6).astype(np.uint8)
+
+
+# --- Discover Sentinel-2 files -----------------------------------------------
 if Sentinel2_level == 'L1C':
+    # Legacy L1C branch: unchanged from earlier revisions.
     sentinel_files = glob.glob(os.path.join(script_dir, 'Dongsha_s2_img', '*B02.tif'))
+elif DATA_SOURCE == 'geoai_datacubes':
+    sentinel_files = _fetch_scenes_via_geoai_datacubes(
+        aoi=AOI, time_range=TIME_RANGE,
+        max_cloud=MAX_CLOUD_COVERAGE, res=FETCH_RESOLUTION_M,
+        out_dir=os.path.join(script_dir, "sentinel_images_L2A_fetched"),
+    )
+elif DATA_SOURCE == 'local_scenes':
+    local_dir = os.path.expanduser(LOCAL_SCENES_DIR)
+    if any(c in local_dir for c in "*?["):
+        sentinel_files = sorted(glob.glob(local_dir))
+    else:
+        sentinel_files = sorted(glob.glob(os.path.join(local_dir, "**", "*.tif*"),
+                                          recursive=True))
+    if not sentinel_files:
+        raise FileNotFoundError(
+            f"local_scenes mode: no .tif/.tiff files found under {local_dir!r}. "
+            "Either point LOCAL_SCENES_DIR at a real folder of 13-band L2A "
+            "scenes, or switch to DATA_SOURCE = 'geoai_datacubes'.")
 else:
-    folder_cloudfree = os.path.join(script_dir, 'sentinel_images_L2A', 'all_bands', 'cloudfree_l2a')
-    cloudfree_files  = glob.glob(os.path.join(folder_cloudfree, '*.tif'))
-    # Deduplicate by basename
-    sentinel_files = list({os.path.basename(f): f for f in cloudfree_files}.values())
+    raise ValueError(
+        f"DATA_SOURCE={DATA_SOURCE!r} is not supported. Use "
+        "'geoai_datacubes' (fetch from AOI+time_range) or 'local_scenes' "
+        "(bring-your-own 13-band L2A GeoTIFFs).")
 
 print(f"Found {len(sentinel_files)} Sentinel-2 file(s) for processing.")
-
-# --- Initialise Google Earth Engine ---
-try:
-    ee.Initialize(project=GEE_PROJECT_ID)
-except Exception:
-    ee.Authenticate()
-    ee.Initialize(project=GEE_PROJECT_ID)
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -223,83 +337,6 @@ def get_bbox_from_transform(transform, rows, cols):
     left, top  = transform.c, transform.f
     resx, resy = transform.a, -transform.e
     return (left, top - resy * rows, left + resx * cols, top)
-
-# =============================================================================
-# GOOGLE EARTH ENGINE — WATER/CLOUD MASK
-# =============================================================================
-
-def fetch_water_mask(nearest_sentinel_date, bbox, scale=20):
-    """
-    Retrieve a binary non-water mask from Sentinel-2 SCL band via GEE.
-
-    Uses a 3×3 tiled sampleRectangle approach to handle large extents.
-
-    Parameters
-    ----------
-    nearest_sentinel_date : str   Acquisition date 'YYYYMMDD'.
-    bbox                  : ee.Geometry  Area of interest.
-    scale                 : int   Spatial resolution in metres (default 20).
-
-    Returns
-    -------
-    mask_np  : np.ndarray or None  Binary array — 0=water, 1=non-water.
-    image_id : str or None         GEE image ID.
-    """
-    try:
-        ee.Initialize(project=GEE_PROJECT_ID)
-    except Exception:
-        ee.Authenticate()
-        ee.Initialize(project=GEE_PROJECT_ID)
-
-    collection = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-                    .filterDate(ee.Date(datetime.strptime(nearest_sentinel_date, "%Y%m%d")),
-                                ee.Date(datetime.strptime(nearest_sentinel_date, "%Y%m%d")).advance(1, 'day'))
-                    .filterBounds(bbox))
-
-    if collection.size().getInfo() == 0:
-        print("No Sentinel-2 image found for the given date/bbox.")
-        return None, None
-
-    image    = collection.first()
-    image_id = image.id().getInfo()
-
-    # SCL class 6 = water; invert to get non-water mask
-    scl_mask = image.select('SCL').eq(6).Not().int().reproject(crs='EPSG:4326', scale=scale)
-
-    # Extract bounding box corners
-    coords   = bbox.bounds().getInfo()['coordinates'][0]
-    lon_min, lat_min = coords[0]
-    lon_max, lat_max = coords[2]
-
-    # Split into 3×3 tiles to stay within GEE pixel download limits
-    n_side   = 3
-    lon_step = (lon_max - lon_min) / n_side
-    lat_step = (lat_max - lat_min) / n_side
-
-    tiles = [
-        ee.Geometry.Rectangle([
-            lon_min + j * lon_step, lat_min + i * lat_step,
-            lon_min + (j + 1) * lon_step, lat_min + (i + 1) * lat_step
-        ])
-        for i in range(n_side) for j in range(n_side)
-    ]
-
-    mask_tiles = []
-    max_rows = max_cols = 0
-    for tile in tiles:
-        arr = np.array(scl_mask.sampleRectangle(region=tile, defaultValue=0).get('SCL').getInfo())
-        mask_tiles.append(arr)
-        max_rows = max(max_rows, arr.shape[0])
-        max_cols = max(max_cols, arr.shape[1])
-
-    def _pad(arr, shape, val=0):
-        out = np.full(shape, val, dtype=int)
-        out[:arr.shape[0], :arr.shape[1]] = arr
-        return out
-
-    mask_tiles = [_pad(t, (max_rows, max_cols)) for t in mask_tiles]
-    rows_list  = [np.hstack(mask_tiles[i * n_side:(i + 1) * n_side]) for i in range(n_side)]
-    return np.vstack(rows_list), image_id
 
 # =============================================================================
 # DTU23 TIDAL MODEL
@@ -606,42 +643,51 @@ for i, sentinel_file in enumerate(sentinel_files):
         print("=" * 80)
         print(f"[{i + 1}/{len(sentinel_files)}] {sentinel_file}")
 
+        # --- Parse acquisition date for tagging / filename output ---
+        # For geoai-datacubes-fetched scenes, the ISO date lives in the
+        # parent directory name (e.g. .../Sentinel-2_2020-06-15_.../
+        # Sentinel-2_full_size.tiff). For legacy local scenes, the L2A
+        # convention embeds the date in the file basename itself. We
+        # search both so either layout works.
         base_name = os.path.basename(sentinel_file)
+        parent    = os.path.basename(os.path.dirname(sentinel_file))
         if Sentinel2_level == 'L1C':
             date_str = base_name.split('_')[1][:8]
         else:
-            parts    = base_name.split('_')
-            date_str = parts[1].replace('-', '') if len(parts) > 1 \
-                       else re.search(r'(\d{8})', base_name).group(1)
+            m = re.search(r'(\d{4}-\d{2}-\d{2})', parent) \
+                or re.search(r'(\d{4}-\d{2}-\d{2})', base_name) \
+                or re.search(r'(\d{8})', parent) \
+                or re.search(r'(\d{8})', base_name)
+            if not m:
+                raise ValueError(
+                    f"Cannot parse acquisition date from either the "
+                    f"filename {base_name!r} or the parent folder "
+                    f"{parent!r}. Rename the scene folder to include a "
+                    "YYYY-MM-DD or YYYYMMDD token.")
+            date_str = m.group(1).replace('-', '')
 
-        # --- Read Sentinel-2 cube (first 12 bands) ---
+        # --- Read Sentinel-2 cube (first 12 bands) + derive water mask ---
+        # geoai-datacubes writes 13-band L2A scenes (bands 1-12 = B01-B12,
+        # band 13 = SCL). Local pre-downloaded scenes must follow the same
+        # convention -- see the DATA_SOURCE docstring in USER CONFIGURATION.
         with rasterio.open(sentinel_file) as src:
             if src.count < 4:
-                raise ValueError("Insufficient bands in Sentinel-2 file (expected ≥ 4).")
+                raise ValueError("Insufficient bands in Sentinel-2 file (expected >= 4).")
             sentinel_transform = src.transform
             sentinel_crs       = src.crs
             cube               = src.read(indexes=list(range(1, 13))).astype(float)
 
-        # --- Cloud / water mask ---
+        # --- Cloud / water mask (derived from the SCL band of the same
+        # scene we just opened). Cache to Cloud_Masks/rev_YYYYMMDD.tif so
+        # a rerun does not re-derive on every pass.
         cloud_mask_glob = glob.glob(os.path.join(script_dir, "Cloud_Masks", f"rev_{date_str}*.tif"))
         if not cloud_mask_glob:
-            rows, cols  = cube.shape[1], cube.shape[2]
-            bbox_coords = [
-                (sentinel_transform.c,                               sentinel_transform.f),
-                (sentinel_transform.c + sentinel_transform.a * cols, sentinel_transform.f),
-                (sentinel_transform.c + sentinel_transform.a * cols, sentinel_transform.f + sentinel_transform.e * rows),
-                (sentinel_transform.c,                               sentinel_transform.f + sentinel_transform.e * rows),
-                (sentinel_transform.c,                               sentinel_transform.f),
-            ]
-            bbox = ee.Geometry.Polygon(bbox_coords, proj=str(sentinel_crs), evenOdd=False)
-
-            cloud_mask, _ = fetch_water_mask(date_str, bbox, scale=20) if SLC == 'on' else (None, None)
-            if cloud_mask is None:
-                print("No cloud mask obtained – skipping scene.")
-                continue
-
+            rows, cols = cube.shape[1], cube.shape[2]
+            cloud_mask = _scl_water_mask_from_scene(sentinel_file)
             if cloud_mask.shape != (rows, cols):
-                cloud_mask = resize(cloud_mask, (rows, cols), order=0, preserve_range=True, anti_aliasing=False)
+                cloud_mask = resize(cloud_mask, (rows, cols),
+                                     order=0, preserve_range=True,
+                                     anti_aliasing=False)
             cloud_mask = (cloud_mask > 0).astype(np.uint8)
 
             os.makedirs(os.path.join(script_dir, "Cloud_Masks"), exist_ok=True)
