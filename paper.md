@@ -34,12 +34,14 @@ bibliography: paper.bib
 `DL_bathy` is an open-source, two-step Python pipeline for training deep
 learning models to estimate shallow-water bathymetry (water depth, 0-20 m)
 from Sentinel-2 multispectral imagery. Step 1 (`step1_splitting.py`) turns
-raw Sentinel-2 scenes and reference depth data into standardized,
-georeferenced training patches: it masks clouds and non-water pixels using
-Google Earth Engine [@gorelick2017gee], applies tidal correction via the
-DTU23 global ocean tide model [@andersen2023dtu23], and produces
-spatially-aware train/validation/test splits with optional balancing and
-augmentation. Step 2 (`step2_train_test.py`) trains a DeepLabV3+
+Sentinel-2 scenes and reference depth data into standardized,
+georeferenced training patches: it fetches Sentinel-2 L2A scenes over an
+AOI and time window via the `geoai-datacubes` package
+[@moortgat2026geoaidatacubes] (or reads user-supplied pre-downloaded
+scenes), derives cloud and non-water masks from the L2A Scene
+Classification Layer (SCL), applies tidal correction via the DTU23 global
+ocean tide model [@andersen2023dtu23], and produces spatially-aware
+train/validation/test splits with optional balancing and augmentation. Step 2 (`step2_train_test.py`) trains a DeepLabV3+
 segmentation model [@chen2018deeplabv3plus] on these patches, with a choice
 of encoder backbone (ResNet-50/101 [@he2016resnet], EfficientNet-B4
 [@tan2019efficientnet], or ConvNeXt-Large [@liu2022convnext]) and a choice
