@@ -57,7 +57,7 @@ BibTeX:
 ```
 numpy pandas matplotlib scipy scikit-image
 rasterio gdal
-earthengine-api
+geoai-datacubes
 torch torchvision
 segmentation-models-pytorch
 ```
@@ -66,31 +66,26 @@ Install with:
 
 ```bash
 pip install numpy pandas matplotlib scipy scikit-image rasterio gdal \
-            earthengine-api torch torchvision segmentation-models-pytorch
+            geoai-datacubes torch torchvision segmentation-models-pytorch
 ```
+
+[`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
+is a sibling BuckAI Observatory package that DL_bathy uses to fetch
+Sentinel-2 L2A imagery (including the SCL cloud/water mask) over any
+AOI and time range, with no external accounts required.
 
 ### External tools
 
-- **Google Earth Engine (GEE) account** — required for cloud/water masking in Step 1.
-- **DTU23 tidal model executable** (`run_perth_new`) — required for tide correction in Step 1. See [DTU Space](https://www.space.dtu.dk) for access.
+- **DTU23 tidal model executable** (`run_perth_new`) — required for
+  tide correction in Step 1. See [DTU Space](https://www.space.dtu.dk)
+  for access. If DTU23 is unavailable, tidal correction can be skipped
+  (see the note at the end of this README).
 
 ---
 
 ## Setup
 
-### 1. Authenticate with Google Earth Engine
-
-```bash
-earthengine authenticate
-```
-
-Then open `step1_splitting.py` and set your project ID:
-
-```python
-GEE_PROJECT_ID = 'ee-your-project-id'
-```
-
-### 2. Configure DTU23 paths
+### 1. Configure DTU23 paths
 
 In `step1_splitting.py`, set the paths to your DTU23 installation:
 
@@ -102,23 +97,50 @@ DTU23_WIN_PATH   = r"C:\path\to\DTU23"
 DTU23_LINUX_PATH = "/path/to/DTU23/SOFTWARE"
 ```
 
+### 2. Choose a data-acquisition mode
+
+Step 1 supports two `DATA_SOURCE` modes for the Sentinel-2 imagery,
+set at the top of `step1_splitting.py`:
+
+- **`DATA_SOURCE = 'geoai_datacubes'` (default)** — auto-fetch S2 L2A
+  scenes over the AOI + time window using the `geoai-datacubes`
+  package. No credentials, no manual downloads. Set the AOI and time
+  range in the same USER CONFIGURATION block:
+
+  ```python
+  AOI                = [145.14, -14.56, 145.66, -14.26]   # lon_min, lat_min, lon_max, lat_max
+  TIME_RANGE         = ('2020-06-01', '2020-09-30')
+  MAX_CLOUD_COVERAGE = 0.20
+  FETCH_RESOLUTION_M = 10
+  ```
+
+  Fetched scenes land under `sentinel_images_L2A_fetched/` in the
+  script directory.
+
+- **`DATA_SOURCE = 'local_scenes'`** — bring-your-own pre-downloaded
+  scenes from `LOCAL_SCENES_DIR`. Each scene must be a **13-band L2A
+  GeoTIFF**: bands 1–12 = B01–B12, band 13 = SCL. This matches what
+  `geoai-datacubes` writes by default; other downloaders that omit
+  SCL are not supported by this mode.
+
 ### 3. Organise your input data
 
-Place the following files/folders next to the scripts:
+Only one required file needs to live next to the scripts: the LiDAR
+reference GeoTIFF (`lidar_filename` in the USER CONFIGURATION block).
+The Sentinel-2 imagery is either auto-fetched (`geoai_datacubes` mode)
+or read from `LOCAL_SCENES_DIR` (`local_scenes` mode).
 
 ```
 project/
 ├── step1_splitting.py
 ├── step2_train_test.py
-├── reference.tif   ← Ground Truth GeoTIFF
-└── sentinel_images_L2A/
-    └── all_bands/
-        ├── cloudfree_l2a/            ← Cloud-free Sentinel-2 scenes (*.tif)
-        ├── (*.tif)                   ← All-band scenes
-        └── L2A_with_clouds/          ← Scenes with clouds (masked in step 1)
+└── reference.tif   ← LiDAR ground-truth GeoTIFF
 ```
 
-For L1C imagery, place scenes in `Dongsha_s2_img/` and set `Sentinel2_level = 'L1C'`.
+For L1C imagery, place scenes in `Dongsha_s2_img/` and set
+`Sentinel2_level = 'L1C'`. The L1C path is legacy and does not
+support the `DATA_SOURCE` modes above; it reads directly from
+`Dongsha_s2_img/`.
 
 ---
 
@@ -134,6 +156,13 @@ Key configuration options (edit the `USER CONFIGURATION` block at the top of the
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
+| `DATA_SOURCE` | `'geoai_datacubes'` | `'geoai_datacubes'` (auto-fetch S2 + SCL) or `'local_scenes'` (BYO pre-downloaded 13-band L2A GeoTIFFs) |
+| `AOI` | `[145.14, -14.56, 145.66, -14.26]` | WGS84 bbox `(lon_min, lat_min, lon_max, lat_max)`; used when `DATA_SOURCE='geoai_datacubes'` |
+| `TIME_RANGE` | `('2020-06-01', '2020-09-30')` | ISO date window; used when `DATA_SOURCE='geoai_datacubes'` |
+| `MAX_CLOUD_COVERAGE` | `0.20` | Scene-level cloud filter (0–1); used when `DATA_SOURCE='geoai_datacubes'` |
+| `FETCH_RESOLUTION_M` | `10` | Output pixel size in metres; used when `DATA_SOURCE='geoai_datacubes'` |
+| `LOCAL_SCENES_DIR` | `'./sentinel_images_L2A/'` | Folder of pre-downloaded scenes; used when `DATA_SOURCE='local_scenes'` |
+| `Sentinel2_level` | `'L2A'` | `'L1C'` or `'L2A'` (the `DATA_SOURCE` modes are L2A-only; `'L1C'` uses the legacy `Dongsha_s2_img/` path) |
 | `split_strategy` | `'consistent_spatial'` | `'per_image'` or `'consistent_spatial'` (recommended to prevent data leakage) |
 | `valid_pixel_threshold` | `0.1` | Minimum fraction of valid pixels per patch |
 | `strict_nan_filter` | `True` | Discard patches with any NaN in the LiDAR target |
@@ -142,7 +171,6 @@ Key configuration options (edit the `USER CONFIGURATION` block at the top of the
 | `stride_value` | `190` | Sliding-window stride (pixels) |
 | `Logcube` | `True` | Apply log-transform to Sentinel-2 reflectance |
 | `apply_augmentation` | `True` | Enable rotation and flip augmentation |
-| `Sentinel2_level` | `'L2A'` | `'L1C'` or `'L2A'` |
 
 **Outputs** (inside `LiDAR_Model(augOriginal_allImg)/`):
 
@@ -216,8 +244,8 @@ console_output_step2.log
 | `huber` | Smooth L1 loss — L2 for small errors, L1 for outliers |
 
 These are implemented in [`losses.py`](losses.py), independent of the rest
-of `step2_train_test.py`, so they can be unit-tested without the GDAL / GEE
-dependencies used elsewhere in the pipeline.
+of `step2_train_test.py`, so they can be unit-tested without the GDAL /
+`geoai-datacubes` / DTU23 dependencies used elsewhere in the pipeline.
 
 ---
 
@@ -228,9 +256,9 @@ pip install pytest torch
 pytest tests/ -v
 ```
 
-Tests cover `losses.py` only (no GDAL/GEE/DTU23 required) and run
-automatically on every push and pull request via GitHub Actions
-(`.github/workflows/tests.yml`).
+Tests cover `losses.py` only (no `geoai-datacubes` / GDAL / DTU23
+required) and run automatically on every push and pull request via
+GitHub Actions (`.github/workflows/tests.yml`).
 
 ---
 

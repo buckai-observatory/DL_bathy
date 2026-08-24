@@ -64,12 +64,16 @@ git clone https://github.com/buckai-observatory/DL_bathy.git
 cd DL_bathy
 
 pip install numpy pandas matplotlib scipy scikit-image rasterio gdal \
-            earthengine-api torch torchvision segmentation-models-pytorch
+            geoai-datacubes torch torchvision segmentation-models-pytorch
 ```
 
-You will also need a Google Earth Engine account (for Step 1 cloud/water
-masking) and, optionally, the DTU23 tidal model executable for tide
-correction — see the README's Requirements section.
+Sentinel-2 imagery is fetched at run time via
+[`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
+in `DATA_SOURCE='geoai_datacubes'` mode, or read from a folder of
+pre-downloaded 13-band L2A GeoTIFFs in `DATA_SOURCE='local_scenes'`
+mode. See the README's "Choose a data-acquisition mode" section.
+The DTU23 tidal model executable is optional for tide correction —
+see the README's Requirements section.
 
 ### Pull request checklist
 
@@ -79,7 +83,7 @@ correction — see the README's Requirements section.
   update the corresponding section of `README.md` in the same PR.
 * Describe what you tested the change against (even a small local run) in
   the PR description — we don't yet have CI running the full pipeline
-  end-to-end (large data / GEE auth requirements), so PR descriptions are
+  end-to-end (network fetches + DTU23 dependency), so PR descriptions are
   the main record of what was verified.
 
 ---
