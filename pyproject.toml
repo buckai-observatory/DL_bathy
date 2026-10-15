@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dl-bathy"
+dynamic = ["version"]
+description = "Deep-learning satellite-derived bathymetry from Sentinel-2 imagery with LiDAR ground truth"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Hsiao-Jou Hsu"}, {name = "Joachim Moortgat"}]
+requires-python = ">=3.10"
+keywords = ["bathymetry", "remote sensing", "Sentinel-2", "LiDAR", "deep learning"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+# Core: patch preparation from local scenes (`sdb split`)
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scipy",
+    "scikit-image",
+    "rasterio",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+train = ["torch", "torchvision", "segmentation-models-pytorch"]
+inference = ["torch", "torchvision", "segmentation-models-pytorch", "huggingface_hub"]
+fetch = ["geoai-datacubes"]
+tide = ["pyTMD"]
+dev = ["pytest"]
+all = ["dl-bathy[train,inference,fetch,tide]"]
+
+[project.scripts]
+sdb = "dl_bathy.cli:main"
+
+[project.urls]
+Repository = "https://github.com/buckai-observatory/DL_bathy"
+
+[tool.setuptools]
+packages = ["dl_bathy"]
+py-modules = ["losses", "inference"]
+
+[tool.setuptools_scm]
+fallback_version = "0.1.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
