@@ -95,10 +95,12 @@ pyTMD
 huggingface_hub
 ```
 
-Install with:
+Three install tiers, depending on what you need:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt            # full pipeline (step1 + step2 + inference)
+pip install -r requirements-inference.txt  # inference.py only, no GDAL/pyTMD
+pip install -r requirements-test.txt       # losses.py unit tests only, no GDAL/pyTMD/ML stack
 ```
 
 `huggingface_hub` is only required for the **inference-only** entry
@@ -311,13 +313,20 @@ of `step2_train_test.py`, so they can be unit-tested without the GDAL /
 ## Testing
 
 ```bash
-pip install pytest torch
+pip install -r requirements-test.txt
 pytest tests/ -v
 ```
 
 Tests cover `losses.py` only (no `geoai-datacubes` / GDAL / pyTMD
 required) and run automatically on every push and pull request via
 GitHub Actions (`.github/workflows/tests.yml`).
+
+### Smoke tests
+
+`tests/` covers `losses.py` in CI; `smoke-tests/` covers the
+network-dependent, end-to-end inference path (not run in CI, since it
+needs live Sentinel-2 fetches and downloads real model weights) — see
+[`smoke-tests/README.md`](smoke-tests/README.md).
 
 ---
 

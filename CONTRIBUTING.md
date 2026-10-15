@@ -66,6 +66,10 @@ cd DL_bathy
 pip install -r requirements.txt
 ```
 
+Only touching `losses.py` or `inference.py`? `requirements-test.txt` and
+`requirements-inference.txt` are lighter, GDAL-free subsets — see the
+README's Requirements section.
+
 Sentinel-2 imagery is fetched at run time via
 [`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
 in `DATA_SOURCE='geoai_datacubes'` mode, or read from a folder of

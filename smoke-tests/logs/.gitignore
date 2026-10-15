@@ -1,0 +1,7 @@
+# SLURM stdout/stderr drops -- keep them local, never commit.
+*.out
+*.err
+slurm-*
+
+# Allow the JSON summaries written by _run_predict.py.
+# (No exclusion -- *.json is tracked.)
