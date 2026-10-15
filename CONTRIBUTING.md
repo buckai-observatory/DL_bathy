@@ -63,8 +63,7 @@ Pull requests are welcome, including from first-time contributors.
 git clone https://github.com/buckai-observatory/DL_bathy.git
 cd DL_bathy
 
-pip install numpy pandas matplotlib scipy scikit-image rasterio gdal \
-            geoai-datacubes torch torchvision segmentation-models-pytorch
+pip install -r requirements.txt
 ```
 
 Sentinel-2 imagery is fetched at run time via
@@ -72,8 +71,10 @@ Sentinel-2 imagery is fetched at run time via
 in `DATA_SOURCE='geoai_datacubes'` mode, or read from a folder of
 pre-downloaded 13-band L2A GeoTIFFs in `DATA_SOURCE='local_scenes'`
 mode. See the README's "Choose a data-acquisition mode" section.
-The DTU23 tidal model executable is optional for tide correction —
-see the README's Requirements section.
+Tide correction defaults to `pyTMD` + EOT20, which needs the EOT20
+constituent files on disk — see the README's "Tide model data" section.
+Set `TIDE_SOURCE = 'custom'` or `'none'` in `step1_splitting.py` to avoid
+that dependency entirely.
 
 ### Pull request checklist
 
@@ -82,9 +83,10 @@ see the README's Requirements section.
 * If you change patch-band ordering, output filenames, or config defaults,
   update the corresponding section of `README.md` in the same PR.
 * Describe what you tested the change against (even a small local run) in
-  the PR description — we don't yet have CI running the full pipeline
-  end-to-end (network fetches + DTU23 dependency), so PR descriptions are
-  the main record of what was verified.
+  the PR description — CI (`.github/workflows/tests.yml`) only covers the
+  `losses.py` unit tests, not the full pipeline end-to-end (network
+  fetches + tide model data), so PR descriptions are the main record of
+  what was verified.
 
 ---
 
