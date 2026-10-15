@@ -10,3 +10,4 @@ torch
 torchvision
 segmentation-models-pytorch
 pyTMD
+huggingface_hub

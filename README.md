@@ -43,10 +43,41 @@ BibTeX:
 
 ## Overview
 
+Two ways to use this repository:
+
+- **Inference-only path** (no training, no ground truth needed): use
+  the pretrained weights hosted on the Hugging Face Hub to run
+  bathymetry prediction on any Sentinel-2 tile via the top-level
+  `inference.py` module. The Colab-ready notebook
+  [`notebooks/dl_bathy_demo.ipynb`](notebooks/dl_bathy_demo.ipynb) walks
+  through fetching a scene, running the model, and comparing the
+  prediction to the public ground-truth subset in `Ground_Truth.zip` —
+  end-to-end, ~10 minutes on a Colab CPU runtime.
+- **Full training path** (bring your own ground truth): the two-step
+  training pipeline below prepares patches from a LiDAR reference
+  raster and trains a new DeepLabV3+ model against them.
+
 | Step | Script | Purpose |
 |------|--------|---------|
+| Inference | `inference.py` | Load pretrained weights from HF Hub, predict depths on Sentinel-2 imagery |
 | 1 | `step1_splitting.py` | Prepare, align, split, balance, and (optionally) augment training patches |
 | 2 | `step2_train_test.py` | Train a DeepLabV3+ model, evaluate on the test set, and save predictions |
+
+### Inference-only quickstart
+
+```python
+from inference import predict_from_geoai_datacubes
+
+depths, meta = predict_from_geoai_datacubes(
+    aoi        = [145.14, -14.56, 145.66, -14.26],   # any lon/lat bbox
+    time_range = ("2020-06-01", "2020-09-30"),
+)
+# depths is a (H, W) numpy array of predicted depths in metres.
+```
+
+See [`MODEL_CARD.md`](MODEL_CARD.md) for a full description of the
+pretrained model — architecture, training data, intended use,
+out-of-scope cautions, and evaluation metrics.
 
 ---
 
@@ -61,6 +92,7 @@ geoai-datacubes
 torch torchvision
 segmentation-models-pytorch
 pyTMD
+huggingface_hub
 ```
 
 Install with:
@@ -68,6 +100,11 @@ Install with:
 ```bash
 pip install -r requirements.txt
 ```
+
+`huggingface_hub` is only required for the **inference-only** entry
+point (`inference.py`), which downloads the pretrained model weights
+from the Hugging Face Hub. The training scripts (`step1_splitting.py`,
+`step2_train_test.py`) do not need it.
 
 [`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
 is a sibling BuckAI Observatory package that DL_bathy uses to fetch
