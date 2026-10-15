@@ -9,6 +9,24 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Anything landed on `main` since the last tagged release goes here until
 the next tag is cut.
 
+### Added
+
+- **Tide correction**: `TIDE_SOURCE` switch in `step1_splitting.py` — the
+  DTU23 Fortran tide model wrapper is replaced by `pyTMD` + EOT20 by
+  default, with `'custom'` (bring-your-own tide grids) and `'none'`
+  fallbacks.
+- **Inference-only path**: `inference.py`, `MODEL_CARD.md`, and
+  `notebooks/dl_bathy_demo.ipynb` — run bathymetry prediction from
+  Hugging Face Hub-hosted weights without retraining.
+- **Tiered dependency installs**: `requirements-test.txt` and
+  `requirements-inference.txt` alongside the existing `requirements.txt`,
+  so contributors only touching `losses.py` or `inference.py` skip the
+  GDAL / pyTMD / full training-stack install.
+- **`smoke-tests/`**: network-dependent, end-to-end scripts (not run in
+  CI) covering environment checks and the full inference path against
+  the public GBR demo AOI — the scripted equivalent of running
+  `notebooks/dl_bathy_demo.ipynb` without Jupyter.
+
 ## `v0.1.0` — 2026-08-08
 
 First public release, archived on Zenodo at
