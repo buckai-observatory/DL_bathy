@@ -61,11 +61,11 @@ Two ways to use this repository:
   training pipeline below prepares patches from a LiDAR reference
   raster and trains a new DeepLabV3+ model against them.
 
-| Step | Script | Purpose |
+| Step | Command / module | Purpose |
 |------|--------|---------|
 | Inference | `inference.py` | Load pretrained weights from HF Hub, predict depths on Sentinel-2 imagery |
-| 1 | `step1_splitting.py` | Prepare, align, split, balance, and (optionally) augment training patches |
-| 2 | `step2_train_test.py` | Train a DeepLabV3+ model, evaluate on the test set, and save predictions |
+| 1 | `sdb split` | Prepare, align, split, balance, and (optionally) augment training patches |
+| 2 | `sdb train` | Train a DeepLabV3+ model, evaluate on the test set, and save predictions |
 
 ### Inference-only quickstart
 
@@ -99,7 +99,20 @@ pyTMD
 huggingface_hub
 ```
 
-Three install tiers, depending on what you need:
+Install the package from a clone of this repository, choosing the extras you need:
+
+```bash
+pip install -e ".[all]"        # everything: training, inference, geoai-datacubes fetch, pyTMD tides
+pip install -e ".[train]"      # `sdb split` + `sdb train` with local scenes and no tide model
+pip install -e ".[inference]"  # inference.py only
+pip install -e .               # `sdb split` only (local scenes, custom or no tides)
+```
+
+Extras: `train` (PyTorch, segmentation-models-pytorch), `inference` (adds
+`huggingface_hub`), `fetch` (`geoai-datacubes`), `tide` (`pyTMD`), `dev` (`pytest`).
+On a GPU cluster, install the PyTorch build matching your CUDA version first.
+
+The previous requirements files still work:
 
 ```bash
 pip install -r requirements.txt            # full pipeline (step1 + step2 + inference)
@@ -109,8 +122,8 @@ pip install -r requirements-test.txt       # losses.py unit tests only, no GDAL/
 
 `huggingface_hub` is only required for the **inference-only** entry
 point (`inference.py`), which downloads the pretrained model weights
-from the Hugging Face Hub. The training scripts (`step1_splitting.py`,
-`step2_train_test.py`) do not need it.
+from the Hugging Face Hub. The training commands (`sdb split`,
+`sdb train`) do not need it.
 
 [`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
 is a sibling BuckAI Observatory package that DL_bathy uses to fetch
@@ -129,26 +142,39 @@ be downloaded once:
    [SEANOE](https://doi.org/10.17882/79489) (open access, no account
    required).
 2. Arrange them as `<directory>/EOT20/ocean_tides/*.nc.gz` and point
-   `TIDE_MODEL_DIRECTORY` in `step1_splitting.py` at `<directory>`
+   `TIDE_MODEL_DIRECTORY` in the `split` section of your config at `<directory>`
    (leave it as `None` to use pyTMD's default cache directory instead).
 
-If you don't need tide model data at all, set `TIDE_SOURCE = 'custom'` to
-supply your own pre-computed tide grids, or `TIDE_SOURCE = 'none'` to skip
+If you don't need tide model data at all, set `TIDE_SOURCE: custom` to
+supply your own pre-computed tide grids, or `TIDE_SOURCE: none` to skip
 tidal correction — see the note at the end of this README.
 
 ---
 
 ## Setup
 
+All settings live in one YAML file with a `split` section (Step 1) and a
+`train` section (Step 2). Write an example that lists every setting with
+its default:
+
+```bash
+sdb init-config dl_bathy_config.yml
+```
+
+Settings you leave out take their defaults, which match the original
+scripts. Relative paths are resolved against the folder containing the
+config file. Unknown setting names are reported as errors.
+
 ### 1. Configure tide correction
 
-In `step1_splitting.py`, choose how Step 1 computes tide heights:
+In the `split` section, choose how Step 1 computes tide heights:
 
-```python
-TIDE_SOURCE           = 'pytmd'   # 'pytmd' | 'custom' | 'none'
-TIDE_MODEL_NAME       = 'EOT20'   # any ocean tide model supported by pyTMD
-TIDE_MODEL_DIRECTORY  = None      # dir with EOT20 files; None = pyTMD default cache
-CUSTOM_TIDE_DIR       = './custom_tide/'   # only used when TIDE_SOURCE == 'custom'
+```yaml
+split:
+  TIDE_SOURCE: pytmd            # pytmd | custom | none
+  TIDE_MODEL_NAME: EOT20        # any ocean tide model supported by pyTMD
+  TIDE_MODEL_DIRECTORY: null    # dir with EOT20 files; null = pyTMD default cache
+  CUSTOM_TIDE_DIR: custom_tide  # only used when TIDE_SOURCE is custom
 ```
 
 - **`'pytmd'` (default)** — predicts tide height per scene with pyTMD/EOT20.
@@ -165,22 +191,23 @@ CUSTOM_TIDE_DIR       = './custom_tide/'   # only used when TIDE_SOURCE == 'cust
 ### 2. Choose a data-acquisition mode
 
 Step 1 supports two `DATA_SOURCE` modes for the Sentinel-2 imagery,
-set at the top of `step1_splitting.py`:
+set in the `split` section:
 
 - **`DATA_SOURCE = 'geoai_datacubes'` (default)** — auto-fetch S2 L2A
   scenes over the AOI + time window using the `geoai-datacubes`
-  package. No credentials, no manual downloads. Set the AOI and time
-  range in the same USER CONFIGURATION block:
+  package (`pip install -e ".[fetch]"`). No credentials, no manual
+  downloads. Set the AOI and time range:
 
-  ```python
-  AOI                = [145.14, -14.56, 145.66, -14.26]   # lon_min, lat_min, lon_max, lat_max
-  TIME_RANGE         = ('2020-06-01', '2020-09-30')
-  MAX_CLOUD_COVERAGE = 0.20
-  FETCH_RESOLUTION_M = 10
+  ```yaml
+  split:
+    AOI: [145.14, -14.56, 145.66, -14.26]   # lon_min, lat_min, lon_max, lat_max
+    TIME_RANGE: ["2020-06-01", "2020-09-30"]
+    MAX_CLOUD_COVERAGE: 0.20
+    FETCH_RESOLUTION_M: 10
   ```
 
-  Fetched scenes land under `sentinel_images_L2A_fetched/` in the
-  script directory.
+  Fetched scenes land under `sentinel_images_L2A_fetched/` (setting
+  `fetch_dir`) next to the config file.
 
 - **`DATA_SOURCE = 'local_scenes'`** — bring-your-own pre-downloaded
   scenes from `LOCAL_SCENES_DIR`. Each scene must be a **13-band L2A
@@ -190,20 +217,19 @@ set at the top of `step1_splitting.py`:
 
 ### 3. Organise your input data
 
-Only one required file needs to live next to the scripts: the LiDAR
-reference GeoTIFF (`lidar_filename` in the USER CONFIGURATION block).
+Only one required file: the LiDAR reference GeoTIFF (setting
+`lidar_file`, relative to the config file).
 The Sentinel-2 imagery is either auto-fetched (`geoai_datacubes` mode)
 or read from `LOCAL_SCENES_DIR` (`local_scenes` mode).
 
 ```
 project/
-├── step1_splitting.py
-├── step2_train_test.py
+├── dl_bathy_config.yml
 └── reference.tif   ← LiDAR ground-truth GeoTIFF
 ```
 
-For L1C imagery, place scenes in `Dongsha_s2_img/` and set
-`Sentinel2_level = 'L1C'`. The L1C path is legacy and does not
+For L1C imagery, place scenes in `Dongsha_s2_img/` (setting `l1c_dir`) and set
+`Sentinel2_level: L1C`. The L1C path is legacy and does not
 support the `DATA_SOURCE` modes above; it reads directly from
 `Dongsha_s2_img/`.
 
@@ -214,10 +240,10 @@ support the `DATA_SOURCE` modes above; it reads directly from
 ### Step 1 — Patch preparation
 
 ```bash
-python step1_splitting.py
+sdb split --config dl_bathy_config.yml
 ```
 
-Key configuration options (edit the `USER CONFIGURATION` block at the top of the script):
+Key settings (`split` section; see `sdb init-config` for all of them):
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -226,27 +252,26 @@ Key configuration options (edit the `USER CONFIGURATION` block at the top of the
 | `TIME_RANGE` | `('2020-06-01', '2020-09-30')` | ISO date window; used when `DATA_SOURCE='geoai_datacubes'` |
 | `MAX_CLOUD_COVERAGE` | `0.20` | Scene-level cloud filter (0–1); used when `DATA_SOURCE='geoai_datacubes'` |
 | `FETCH_RESOLUTION_M` | `10` | Output pixel size in metres; used when `DATA_SOURCE='geoai_datacubes'` |
-| `LOCAL_SCENES_DIR` | `'./sentinel_images_L2A/'` | Folder of pre-downloaded scenes; used when `DATA_SOURCE='local_scenes'` |
+| `LOCAL_SCENES_DIR` | `'sentinel_images_L2A'` | Folder of pre-downloaded scenes; used when `DATA_SOURCE='local_scenes'` |
 | `Sentinel2_level` | `'L2A'` | `'L1C'` or `'L2A'` (the `DATA_SOURCE` modes are L2A-only; `'L1C'` uses the legacy `Dongsha_s2_img/` path) |
-| `split_strategy` | `'consistent_spatial'` | `'per_image'` or `'consistent_spatial'` (recommended to prevent data leakage) |
+| `split_strategy` | `'consistent_spatial'` | `'per_image'` or `'consistent_spatial'` (see issue #10: patches that overlap can still leak between splits) |
 | `valid_pixel_threshold` | `0.1` | Minimum fraction of valid pixels per patch |
-| `strict_nan_filter` | `True` | Discard patches with any NaN in the LiDAR target |
-| `train_ratio` / `val_ratio` | `0.80` / `0.10` | Train/val split fractions (test = remainder) |
-| `patch_size` | `380` | Square patch side length (pixels) |
-| `stride_value` | `190` | Sliding-window stride (pixels) |
+| `strict_nan_filter` | `False` | Discard patches with any NaN in the LiDAR target |
+| `train_ratio` / `val_ratio` | `1.0` / `0.0` | Train/val split fractions (test = remainder); set both to `0.0` for inference-only sites |
+| `patch_size` | `512` | Square patch side length (pixels) |
+| `stride_value` | `256` | Sliding-window stride (pixels) |
 | `Logcube` | `True` | Apply log-transform to Sentinel-2 reflectance |
 | `apply_augmentation` | `True` | Enable rotation and flip augmentation |
 
-**Outputs** (inside `LiDAR_Model(augOriginal_allImg)/`):
+**Outputs** (inside `Data/`, setting `output_dir`):
 
 ```
 train/          valid/          test/
-train_balanced/ valid_balanced/ test_balanced/
-train_aug/      valid_aug/      test_aug/
-*_Patches_Mask_3way.jpg            ← Split visualisation (balanced)
-*_Patches_Mask_3way_ORIGINAL.jpg   ← Split visualisation (unbalanced)
+train_balanced/ valid_balanced/ test_balanced/   (only if apply_balance)
+train_aug/      valid_aug/      test_aug/        (only if apply_augmentation)
+*_Patches_Mask_split.jpg           ← Split visualisation (unbalanced)
+*_Patches_Mask_balanced.jpg        ← Split visualisation (balanced, if apply_balance)
 cloud_removal_counts.csv
-console_output_step1.log
 ```
 
 Each GeoTIFF patch contains **14 bands**:
@@ -259,24 +284,25 @@ Each GeoTIFF patch contains **14 bands**:
 ### Step 2 — Training and inference
 
 ```bash
-python step2_train_test.py
+sdb train --config dl_bathy_config.yml
 ```
 
-Key configuration options (edit the `USER CONFIGURATION` block):
+Key settings (`train` section):
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `TrainingDataPath` | `"./LiDAR_Model(...)"` | Path to patches from Step 1 |
+| `TrainingDataPath` | `"Data"` | Path to patches from Step 1 |
+| `encoder_weights` | `"imagenet"` | Pre-trained encoder weights; `null` trains from scratch without downloading |
 | `Model_mode` | `"tu-convnext_large"` | Backbone: `tu-convnext_large`, `efficientnet-b4`, `resnet101`, `resnet50` |
 | `loss_type` | `"swf"` | Loss: `sse` (RMSE), `mae`, `rpe`, `swf` (depth-weighted), `huber` |
 | `num_epochs` | `1000` | Max epochs (early stopping will terminate sooner) |
 | `batch_size` | `16` | Batch size per GPU |
 | `lr` | `1e-4` | Initial learning rate |
 | `earlystop_patience` | `10` | Epochs without improvement before stopping |
-| `depth_type` | `"deep"` | `"deep"` or `"shallow"` — which pixels to train on |
+| `depth_type` | `"deep"` | `"deep"` or `"shallow"`. Note (issue #11): the code currently *excludes* the matching pixels, so `"deep"` trains on pixels shallower than `depth_threshold` |
 | `depth_threshold` | `20` | Depth boundary (m) for deep/shallow classification |
 
-**Outputs** (inside `LiDAR_Model_output/`):
+**Outputs** (inside `Model_output/`, setting `LiDAR_Model`):
 
 ```
 best_model.pth                    ← Best checkpoint (monitored metric)
@@ -309,7 +335,7 @@ console_output_step2.log
 | `huber` | Smooth L1 loss — L2 for small errors, L1 for outliers |
 
 These are implemented in [`losses.py`](losses.py), independent of the rest
-of `step2_train_test.py`, so they can be unit-tested without the GDAL /
+of the training code, so they can be unit-tested without the GDAL /
 `geoai-datacubes` / pyTMD dependencies used elsewhere in the pipeline.
 
 ---
@@ -317,13 +343,17 @@ of `step2_train_test.py`, so they can be unit-tested without the GDAL /
 ## Testing
 
 ```bash
-pip install -r requirements-test.txt
+pip install -e ".[train,dev]"
 pytest tests/ -v
 ```
 
-Tests cover `losses.py` only (no `geoai-datacubes` / GDAL / pyTMD
-required) and run automatically on every push and pull request via
-GitHub Actions (`.github/workflows/tests.yml`).
+Tests cover the loss functions, configuration and command line, patch
+extraction and splitting, and an end-to-end `sdb split` plus a 1-epoch
+CPU `sdb train` on a tiny synthetic scene. They need no network,
+`geoai-datacubes`, GDAL build or tide model, and run automatically on
+every push and pull request via GitHub Actions
+(`.github/workflows/tests.yml`), on Linux and Windows and without
+PyTorch for `sdb split`.
 
 ### Smoke tests
 
