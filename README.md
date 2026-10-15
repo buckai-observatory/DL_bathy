@@ -14,22 +14,6 @@ removed and is not included in this repository.
 
 ---
 
-## Pretrained model weights
-
-Trained weights for all five models reported in the associated paper (four
-DeepLabV3+ backbones — ConvNeXt-Large, ResNet-101, ResNet-50,
-EfficientNet-B4 — plus the Random Forest baseline) are archived on Zenodo:
-
-> **DOI: _TODO — fill in once the Zenodo deposit is published_**
-
-For each DeepLabV3+ backbone, both the best-validation-metric checkpoint
-(`best_model.pth`) and the final-epoch checkpoint
-(`deeplabv3_bathy_final.pth`) are included. See the deposit's own README for
-file naming and how to load each checkpoint with
-`segmentation-models-pytorch`.
-
----
-
 ## Citation
 
 This code was developed to support the following paper. If you use this code or build upon it, please cite:
