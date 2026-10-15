@@ -1,0 +1,15 @@
+# Inference-only path (inference.py): load a pretrained checkpoint from
+# the Hugging Face Hub and run bathymetry prediction. No GDAL build
+# dependency, no pyTMD, no training-time deps.
+numpy
+torch
+torchvision
+segmentation-models-pytorch
+huggingface_hub
+
+# predict_from_geoai_datacubes() additionally needs these two (lazily
+# imported, so build_model()/load_model()/predict_depth() work without
+# them if you bring your own Sentinel-2 imagery instead of auto-fetching
+# it):
+#   rasterio
+#   geoai-datacubes
