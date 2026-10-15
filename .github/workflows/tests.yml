@@ -8,19 +8,45 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Full suite: losses, config/CLI, synthetic end-to-end `sdb split` and
+    # 1-epoch CPU `sdb train`. No network, GDAL build or tide model needed.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+        include:
+          - os: windows-latest
+            python-version: "3.11"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools_scm reads the version from git tags
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install test dependencies
-        run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements-test.txt
+      - name: Install CPU-only PyTorch
+        run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package
+        run: pip install -e ".[train,dev]"
 
       - name: Run tests
         run: pytest tests/ -v
+
+  minimal-install:
+    # `sdb split` must work without the [train] extra (no PyTorch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/test_config_cli.py tests/test_split.py -v

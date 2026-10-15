@@ -11,6 +11,19 @@ the next tag is cut.
 
 ### Added
 
+- **Installable package and command line**: `pyproject.toml` (`pip install -e ".[all]"`,
+  with `train`, `inference`, `fetch`, `tide` and `dev` extras) and an `sdb` command:
+  `sdb split`, `sdb train` and `sdb init-config`. The step code moved into
+  `dl_bathy/split.py` and `dl_bathy/train.py`; `step1_splitting.py` and
+  `step2_train_test.py` remain as thin wrappers.
+- **YAML configuration**: settings move from the USER CONFIGURATION blocks into
+  one config file with `split` and `train` sections. Defaults reproduce the
+  previous scripts; unknown keys are rejected. New `encoder_weights` setting
+  (`null` trains without downloading ImageNet weights).
+- **Synthetic tests**: config/CLI, patch extraction and splitting, custom tide
+  grids, and end-to-end `sdb split` + 1-epoch CPU `sdb train` on a tiny
+  synthetic scene; CI now runs them on Linux (Python 3.10–3.12) and Windows,
+  plus a job without PyTorch.
 - **Tide correction**: `TIDE_SOURCE` switch in `step1_splitting.py` — the
   DTU23 Fortran tide model wrapper is replaced by `pyTMD` + EOT20 by
   default, with `'custom'` (bring-your-own tide grids) and `'none'`
@@ -26,6 +39,13 @@ the next tag is cut.
   CI) covering environment checks and the full inference path against
   the public GBR demo AOI — the scripted equivalent of running
   `notebooks/dl_bathy_demo.ipynb` without Jupyter.
+
+### Fixed
+
+- `filter_valid_patches` no longer drops 13-band patches (without a mask band)
+  because of an undefined variable.
+- README parameter tables now show the actual defaults (`strict_nan_filter`,
+  split ratios, patch size and stride, output folder names).
 
 ## `v0.1.0` — 2026-08-08
 

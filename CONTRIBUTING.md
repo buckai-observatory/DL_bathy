@@ -40,8 +40,8 @@ Please give us enough information to reproduce the problem:
 * **Environment** — output of `python -V`, `pip show torch`,
   `pip show segmentation-models-pytorch`, `pip show rasterio`, and the
   operating system.
-* **What you ran** — `step1_splitting.py` or `step2_train_test.py`, plus
-  the relevant entries from the `USER CONFIGURATION` block you edited.
+* **What you ran** — `sdb split` or `sdb train` (or `inference.py`), plus
+  the relevant entries from your YAML config file.
 * **What happened** — the full traceback, plus the relevant lines from
   `console_output_step1.log` / `console_output_step2.log`.
 * **What you expected** — one or two sentences is enough.
@@ -77,8 +77,8 @@ pre-downloaded 13-band L2A GeoTIFFs in `DATA_SOURCE='local_scenes'`
 mode. See the README's "Choose a data-acquisition mode" section.
 Tide correction defaults to `pyTMD` + EOT20, which needs the EOT20
 constituent files on disk — see the README's "Tide model data" section.
-Set `TIDE_SOURCE = 'custom'` or `'none'` in `step1_splitting.py` to avoid
-that dependency entirely.
+Set `TIDE_SOURCE: custom` or `none` in the `split` section of your config
+to avoid that dependency entirely.
 
 ### Pull request checklist
 
