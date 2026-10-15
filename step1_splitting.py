@@ -8,7 +8,8 @@ Prepares satellite-derived bathymetry training data by:
     pre-downloaded scenes from disk (`DATA_SOURCE = 'local_scenes'`)
   - Aligning Sentinel-2 imagery with LiDAR ground truth
   - Deriving cloud/water masks from the SCL band (class 6 = water)
-  - Generating tide correction grids using the DTU23 tidal model
+  - Generating tide correction grids using pyTMD (EOT20 by default), a
+    user-supplied tide grid, or skipping tidal correction entirely
   - Extracting, splitting, (optionally) balancing, and augmenting image patches
   - Saving patches as GeoTIFFs with 14 bands:
       Bands 1-12 : Sentinel-2 reflectance
@@ -42,8 +43,6 @@ import os
 import glob
 import re
 import random
-import platform
-import subprocess
 from datetime import datetime, timedelta
 import shutil
 import tempfile
@@ -114,10 +113,23 @@ os.makedirs(LiDAR_Model, exist_ok=True)
 # sys.stdout = open(log_path, "w", buffering=1)
 # sys.stderr = sys.stdout
 
-# --- DTU23 tidal model paths ---
-# Update these to match your DTU23 installation.
-DTU23_WIN_PATH   = r"C:\path\to\DTU23"          # Windows: directory containing run_perth_new
-DTU23_LINUX_PATH = "/path/to/DTU23/SOFTWARE"    # Linux / HPC equivalent
+# --- Tide correction ---
+# TIDE_SOURCE options:
+#   'pytmd'  (default) -- predict tide heights with the pyTMD package using
+#            the ocean tide model named in TIDE_MODEL_NAME (EOT20 by
+#            default). Pure Python, pip-installable, no compiled executable.
+#            Requires the model's constituent files on disk -- see the
+#            README's "Tide correction" section for how to obtain EOT20.
+#   'custom' -- bring-your-own tide correction. Place one pre-computed,
+#            single-band GeoTIFF per Sentinel-2 scene in CUSTOM_TIDE_DIR,
+#            named tide_<acquisition:%Y%m%d_%H%M%S>.tif, covering the same
+#            extent/CRS as that scene (metres, positive = higher sea level).
+#   'none'   -- skip tidal correction entirely (tide height = 0 everywhere).
+TIDE_SOURCE           = 'pytmd'
+TIDE_MODEL_NAME       = 'EOT20'   # any ocean tide model supported by pyTMD
+TIDE_MODEL_DIRECTORY  = None      # dir holding the model's constituent files;
+                                   # None = pyTMD's default cache directory
+CUSTOM_TIDE_DIR       = './custom_tide/'   # only used when TIDE_SOURCE == 'custom'
 
 # --- Train / Validation / Test split ratios ---
 # Set both to 0 to assign ALL patches to the test set (inference-only mode).
@@ -297,17 +309,6 @@ print(f"Found {len(sentinel_files)} Sentinel-2 file(s) for processing.")
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def date_to_seconds_since_1985(date):
-    """Convert a datetime to integer seconds elapsed since 1985-01-01."""
-    return int((date - datetime(1985, 1, 1)).total_seconds())
-
-
-def to_wsl_path(win_path):
-    """Convert a Windows absolute path to its WSL /mnt/... equivalent."""
-    abs_path = os.path.abspath(win_path)
-    return "/mnt/" + abs_path[0].lower() + abs_path[2:].replace("\\", "/")
-
-
 def extract_acquisition_time(filename, sentinel2_level):
     """
     Parse the acquisition timestamp from a Sentinel-2 filename.
@@ -339,67 +340,53 @@ def get_bbox_from_transform(transform, rows, cols):
     return (left, top - resy * rows, left + resx * cols, top)
 
 # =============================================================================
-# DTU23 TIDAL MODEL
+# TIDAL CORRECTION
 # =============================================================================
 
-def run_dtu23(start_date, end_date, latitude, longitude):
+def sample_tide_pytmd(lons, lats, acq_datetime,
+                       model_name=TIDE_MODEL_NAME, directory=TIDE_MODEL_DIRECTORY):
     """
-    Call the DTU23 Fortran tidal model and return the predicted tide height (m).
-
-    The executable path and temp-file location are chosen automatically based
-    on the detected OS (Windows/WSL or Linux).
+    Predict ocean tide height (m) at a set of points and a single moment in
+    time, using the pyTMD package.
 
     Parameters
     ----------
-    start_date, end_date : datetime   1-second window around the acquisition time.
-    latitude, longitude  : float      Geographic coordinates of the query point.
+    lons, lats   : np.ndarray  1-D arrays of query longitudes/latitudes (deg).
+    acq_datetime : datetime    Acquisition time shared by all points.
+    model_name   : str         Ocean tide model known to pyTMD (default
+                                'EOT20'; see pyTMD.io.model for others).
+    directory    : str or None Directory holding the model's constituent
+                                files. None uses pyTMD's default cache dir.
 
     Returns
     -------
-    float  Tide height in metres.
+    np.ndarray  Tide heights in metres, same shape as lons/lats.
     """
-    start_s   = date_to_seconds_since_1985(start_date)
-    end_s     = date_to_seconds_since_1985(end_date)
+    try:
+        import pyTMD
+    except ImportError as exc:
+        raise ImportError(
+            "TIDE_SOURCE='pytmd' requires the pyTMD package. Install with "
+            "`pip install pyTMD`. Alternatively set TIDE_SOURCE='custom' "
+            "(bring-your-own tide grids) or 'none' (skip tidal correction).") from exc
 
-    if platform.system() == "Windows":
-        temp_real    = os.path.join(DTU23_WIN_PATH, "temp.txt")
-        temp_fortran = to_wsl_path(temp_real)
-        cmd          = f"cd {to_wsl_path(DTU23_WIN_PATH)} && ./run_perth_new"
-        run_cmd      = ["wsl", "bash", "-c", cmd]
-    else:
-        temp_real    = "/tmp/temp.txt"
-        temp_fortran = temp_real
-        cmd          = f"cd {DTU23_LINUX_PATH} && ./run_perth_new"
-        run_cmd      = ["bash", "-c", cmd]
-
-    inputs  = f"{temp_fortran}\n{start_s}\n{end_s}\n1\n{latitude}\n{longitude}\n"
-    process = subprocess.run(run_cmd, input=inputs, text=True, capture_output=True)
-
-    if process.returncode != 0:
-        raise RuntimeError(f"DTU23 failed:\n{process.stdout}\n{process.stderr}")
-    if not os.path.exists(temp_real):
-        raise FileNotFoundError(f"DTU23 output not found: {temp_real}")
-
-    tide_value = None
-    with open(temp_real) as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                tide_value = float(parts[-1])
-    return tide_value
-
-
-def get_tide(lat, lon, acq_datetime):
-    """Query DTU23 for the tide height at a single point and moment."""
-    return run_dtu23(acq_datetime - timedelta(seconds=1), acq_datetime, lat, lon)
+    delta_time = np.full(lons.shape, np.datetime64(acq_datetime), dtype="datetime64[ns]")
+    tide = pyTMD.compute.tide_elevations(
+        lons, lats, delta_time,
+        directory=directory, model=model_name,
+        crs=4326, type="drift", standard="datetime",
+    )
+    return np.asarray(tide, dtype="float32")
 
 
 def generate_tide_grid(sentinel_file, acq_datetime, tide_folder):
     """
-    Build a spatially interpolated tide-height GeoTIFF for a Sentinel-2 scene.
+    Build a spatially interpolated tide-height GeoTIFF for a Sentinel-2 scene
+    using pyTMD (TIDE_SOURCE == 'pytmd').
 
-    Samples DTU23 on a coarse 1/16° grid (≈ 6 km resolution), then bilinearly
-    interpolates to the full Sentinel-2 pixel grid.
+    Samples the tide model on a coarse 1/16° grid (≈ 6 km resolution) in a
+    single batched pyTMD call, then bilinearly interpolates to the full
+    Sentinel-2 pixel grid.
 
     Parameters
     ----------
@@ -423,14 +410,12 @@ def generate_tide_grid(sentinel_file, acq_datetime, tide_folder):
     step        = 1 / 16.0
     coarse_lons = np.arange(np.floor(lons.min() / step) * step, np.ceil(lons.max() / step) * step + step, step)
     coarse_lats = np.arange(np.floor(lats.min() / step) * step, np.ceil(lats.max() / step) * step + step, step)
+    grid_lon, grid_lat = np.meshgrid(coarse_lons, coarse_lats, indexing="xy")
+    coords = np.column_stack([grid_lon.ravel(), grid_lat.ravel()])
 
-    tide_samples, coords = [], []
-    for lat in coarse_lats:
-        for lon in coarse_lons:
-            tide_samples.append(get_tide(lat, lon, acq_datetime))
-            coords.append((lon, lat))
+    tide_samples = sample_tide_pytmd(coords[:, 0], coords[:, 1], acq_datetime)
 
-    tide_interp = griddata(np.array(coords), np.array(tide_samples),
+    tide_interp = griddata(coords, tide_samples,
                            np.column_stack([lons.ravel(), lats.ravel()]), method="linear")
     tide_interp = tide_interp.reshape(height, width).astype("float32")
 
@@ -441,6 +426,52 @@ def generate_tide_grid(sentinel_file, acq_datetime, tide_folder):
         dst.write(tide_interp, 1)
     print(f"Tide grid saved: {out_name}")
     return out_name, tide_interp
+
+
+def get_tide_grid_for_scene(sentinel_file, acq_datetime, lidar_shape, script_dir):
+    """
+    Dispatch tidal correction according to TIDE_SOURCE and return a tide-
+    height grid (metres) matching the Sentinel-2 scene's pixel grid.
+
+    'pytmd'  -- compute (and cache) a tide grid with pyTMD/EOT20.
+    'custom' -- read a user-supplied GeoTIFF from CUSTOM_TIDE_DIR.
+    'none'   -- return an all-zero grid (no tidal correction applied).
+    """
+    if TIDE_SOURCE == 'none':
+        return np.zeros(lidar_shape, dtype="float32")
+
+    if TIDE_SOURCE == 'pytmd':
+        tide_folder = os.path.join(script_dir, "PyTMD_tide")
+        tide_path   = os.path.join(tide_folder, f"tide_{acq_datetime:%Y%m%d_%H%M%S}.tif")
+        if not os.path.exists(tide_path):
+            _, tide_grid = generate_tide_grid(sentinel_file, acq_datetime, tide_folder)
+            return tide_grid
+        with rasterio.open(tide_path) as src:
+            return src.read(1)
+
+    if TIDE_SOURCE == 'custom':
+        custom_dir  = os.path.expanduser(CUSTOM_TIDE_DIR)
+        tide_path   = os.path.join(custom_dir, f"tide_{acq_datetime:%Y%m%d_%H%M%S}.tif")
+        if not os.path.exists(tide_path):
+            raise FileNotFoundError(
+                f"TIDE_SOURCE='custom' but no tide grid found at {tide_path!r}. "
+                "Place one single-band GeoTIFF per Sentinel-2 scene in "
+                "CUSTOM_TIDE_DIR, named tide_<acquisition:%Y%m%d_%H%M%S>.tif, "
+                "covering the same extent/CRS as that scene (metres, "
+                "positive = higher sea level).")
+        with rasterio.open(tide_path) as src:
+            tide_grid = src.read(1)
+        if tide_grid.shape != lidar_shape:
+            raise ValueError(
+                f"{tide_path}: custom tide grid shape {tide_grid.shape} does "
+                f"not match the Sentinel-2 scene grid {lidar_shape}. Generate "
+                "it on the same grid as the Sentinel-2 scene it corrects.")
+        return tide_grid
+
+    raise ValueError(
+        f"TIDE_SOURCE={TIDE_SOURCE!r} is not supported. Use 'pytmd' "
+        "(EOT20 via pyTMD), 'custom' (bring-your-own tide grids), or "
+        "'none' (skip tidal correction).")
 
 # =============================================================================
 # PATCH EXTRACTION
@@ -740,13 +771,7 @@ for i, sentinel_file in enumerate(sentinel_files):
             except ValueError:
                 acq_dt = datetime.strptime(acquisition_time_str, '%Y%m%d')
 
-        tide_folder = os.path.join(script_dir, "DTU23_tide")
-        tide_path   = os.path.join(tide_folder, f"tide_{acq_dt:%Y%m%d_%H%M%S}.tif")
-        if not os.path.exists(tide_path):
-            _, tide_grid = generate_tide_grid(sentinel_file, acq_dt, tide_folder)
-        else:
-            with rasterio.open(tide_path) as src:
-                tide_grid = src.read(1)
+        tide_grid = get_tide_grid_for_scene(sentinel_file, acq_dt, resampled_lidar.shape, script_dir)
         resampled_lidar += tide_grid
 
         # --- Normalise Sentinel-2 reflectance ---
