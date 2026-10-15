@@ -1,0 +1,5 @@
+# Minimal env to run tests/test_losses.py -- no GDAL, rasterio, pyTMD,
+# geoai-datacubes, or huggingface_hub required. This is exactly what
+# .github/workflows/tests.yml installs in CI.
+torch
+pytest

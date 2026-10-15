@@ -1,3 +1,9 @@
+# Full pipeline: step1_splitting.py + step2_train_test.py + inference.py +
+# losses.py. Installs GDAL/rasterio and the full ML stack (~2+ GB).
+#
+# Only running the test suite or just inference.py? Lighter options:
+#   pip install -r requirements-test.txt        (losses.py unit tests only)
+#   pip install -r requirements-inference.txt   (HF Hub inference path only)
 numpy
 pandas
 matplotlib
