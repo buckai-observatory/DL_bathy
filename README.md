@@ -14,6 +14,22 @@ removed and is not included in this repository.
 
 ---
 
+## Pretrained model weights
+
+Trained weights for all five models reported in the associated paper (four
+DeepLabV3+ backbones — ConvNeXt-Large, ResNet-101, ResNet-50,
+EfficientNet-B4 — plus the Random Forest baseline) are archived on Zenodo:
+
+> **DOI: _TODO — fill in once the Zenodo deposit is published_**
+
+For each DeepLabV3+ backbone, both the best-validation-metric checkpoint
+(`best_model.pth`) and the final-epoch checkpoint
+(`deeplabv3_bathy_final.pth`) are included. See the deposit's own README for
+file naming and how to load each checkpoint with
+`segmentation-models-pytorch`.
+
+---
+
 ## Citation
 
 This code was developed to support the following paper. If you use this code or build upon it, please cite:
@@ -60,13 +76,13 @@ rasterio gdal
 geoai-datacubes
 torch torchvision
 segmentation-models-pytorch
+pyTMD
 ```
 
 Install with:
 
 ```bash
-pip install numpy pandas matplotlib scipy scikit-image rasterio gdal \
-            geoai-datacubes torch torchvision segmentation-models-pytorch
+pip install -r requirements.txt
 ```
 
 [`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
@@ -74,28 +90,50 @@ is a sibling BuckAI Observatory package that DL_bathy uses to fetch
 Sentinel-2 L2A imagery (including the SCL cloud/water mask) over any
 AOI and time range, with no external accounts required.
 
-### External tools
+### Tide model data (optional)
 
-- **DTU23 tidal model executable** (`run_perth_new`) — required for
-  tide correction in Step 1. See [DTU Space](https://www.space.dtu.dk)
-  for access. If DTU23 is unavailable, tidal correction can be skipped
-  (see the note at the end of this README).
+Step 1 defaults to predicting tide heights with
+[`pyTMD`](https://pytmd.readthedocs.io/) using the **EOT20** global ocean
+tide model (Hart-Davis et al., 2021). pyTMD is pure Python and pip-installable,
+but EOT20's constituent files (~2 GB) are not bundled with pyTMD and must
+be downloaded once:
+
+1. Download the EOT20 ocean tide NetCDF files from
+   [SEANOE](https://doi.org/10.17882/79489) (open access, no account
+   required).
+2. Arrange them as `<directory>/EOT20/ocean_tides/*.nc.gz` and point
+   `TIDE_MODEL_DIRECTORY` in `step1_splitting.py` at `<directory>`
+   (leave it as `None` to use pyTMD's default cache directory instead).
+
+If you don't need tide model data at all, set `TIDE_SOURCE = 'custom'` to
+supply your own pre-computed tide grids, or `TIDE_SOURCE = 'none'` to skip
+tidal correction — see the note at the end of this README.
 
 ---
 
 ## Setup
 
-### 1. Configure DTU23 paths
+### 1. Configure tide correction
 
-In `step1_splitting.py`, set the paths to your DTU23 installation:
+In `step1_splitting.py`, choose how Step 1 computes tide heights:
 
 ```python
-# Windows (WSL) path to the directory containing run_perth_new
-DTU23_WIN_PATH   = r"C:\path\to\DTU23"
-
-# Linux / HPC path
-DTU23_LINUX_PATH = "/path/to/DTU23/SOFTWARE"
+TIDE_SOURCE           = 'pytmd'   # 'pytmd' | 'custom' | 'none'
+TIDE_MODEL_NAME       = 'EOT20'   # any ocean tide model supported by pyTMD
+TIDE_MODEL_DIRECTORY  = None      # dir with EOT20 files; None = pyTMD default cache
+CUSTOM_TIDE_DIR       = './custom_tide/'   # only used when TIDE_SOURCE == 'custom'
 ```
+
+- **`'pytmd'` (default)** — predicts tide height per scene with pyTMD/EOT20.
+  Requires the EOT20 data described above.
+- **`'custom'`** — bring-your-own tidal correction. Place one single-band
+  GeoTIFF per Sentinel-2 scene in `CUSTOM_TIDE_DIR`, named
+  `tide_<acquisition:%Y%m%d_%H%M%S>.tif`, covering the same extent/CRS as
+  that scene (metres, positive = higher sea level). Useful if you already
+  have tide predictions from another model (e.g. FES2014, DTU23, a local
+  tide gauge) or want to reuse this repository's pre-pyTMD DTU23 workflow.
+- **`'none'`** — skip tidal correction entirely (tide height = 0 m
+  everywhere).
 
 ### 2. Choose a data-acquisition mode
 
@@ -245,7 +283,7 @@ console_output_step2.log
 
 These are implemented in [`losses.py`](losses.py), independent of the rest
 of `step2_train_test.py`, so they can be unit-tested without the GDAL /
-`geoai-datacubes` / DTU23 dependencies used elsewhere in the pipeline.
+`geoai-datacubes` / pyTMD dependencies used elsewhere in the pipeline.
 
 ---
 
@@ -256,7 +294,7 @@ pip install pytest torch
 pytest tests/ -v
 ```
 
-Tests cover `losses.py` only (no `geoai-datacubes` / GDAL / DTU23
+Tests cover `losses.py` only (no `geoai-datacubes` / GDAL / pyTMD
 required) and run automatically on every push and pull request via
 GitHub Actions (`.github/workflows/tests.yml`).
 
@@ -272,7 +310,7 @@ DataParallel is enabled automatically when multiple CUDA GPUs are detected. On S
 
 - **Data leakage**: Use `split_strategy = 'consistent_spatial'` (default) to ensure patches from the same geographic location are always assigned to the same split.
 - **Log scaling**: If `Logcube = True` in Step 1, set `scaling_method = "Log_band"` in Step 2 (no additional scaling is applied — the log transform was already applied to the saved patches).
-- **Tide correction**: If DTU23 is unavailable, set `tide_grid = np.zeros_like(resampled_lidar)` in Step 1 to skip tidal correction.
+- **Tide correction**: If you don't have EOT20 data (or any tide model) available, set `TIDE_SOURCE = 'none'` in Step 1 to skip tidal correction, or `TIDE_SOURCE = 'custom'` to supply your own tide grids.
 
 ---
 

@@ -39,8 +39,9 @@ georeferenced training patches: it fetches Sentinel-2 L2A scenes over an
 AOI and time window via the `geoai-datacubes` package
 [@moortgat2026geoaidatacubes] (or reads user-supplied pre-downloaded
 scenes), derives cloud and non-water masks from the L2A Scene
-Classification Layer (SCL), applies tidal correction via the DTU23 global
-ocean tide model [@andersen2023dtu23], and produces spatially-aware
+Classification Layer (SCL), applies tidal correction via the EOT20 global
+ocean tide model [@hartdavis2021eot20] using the `pyTMD` package
+[@sutterley2024pytmd] (or a user-supplied tide grid), and produces spatially-aware
 train/validation/test splits with optional balancing and augmentation. Step 2 (`step2_train_test.py`) trains a DeepLabV3+
 segmentation model [@chen2018deeplabv3plus] on these patches, with a choice
 of encoder backbone (ResNet-50/101 [@he2016resnet], EfficientNet-B4
@@ -100,8 +101,10 @@ MagicBathyNet dataset.
 The pipeline is organized as two standalone, configuration-driven scripts
 plus a small shared module:
 
-- **`step1_splitting.py`** — fetches cloud/water masks from Google Earth
-  Engine, computes DTU23 tidal corrections per acquisition, extracts
+- **`step1_splitting.py`** — fetches Sentinel-2 L2A scenes and derives
+  cloud/water masks from the Scene Classification Layer via
+  `geoai-datacubes` (or reads user-supplied scenes), computes EOT20 tidal
+  corrections per acquisition via `pyTMD`, extracts
   fixed-size image patches co-registered with reference bathymetry,
   applies depth-based balancing, and (optionally) augments patches with
   rotations and flips. Output patches are 14-band GeoTIFFs: 12 Sentinel-2

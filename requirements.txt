@@ -1,0 +1,12 @@
+numpy
+pandas
+matplotlib
+scipy
+scikit-image
+rasterio
+gdal
+geoai-datacubes
+torch
+torchvision
+segmentation-models-pytorch
+pyTMD
