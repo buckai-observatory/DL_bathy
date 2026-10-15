@@ -50,6 +50,15 @@ HF_DEFAULT_FILENAME = "deeplabv3_bathy_final.pth"
 #: ``step2_train_test.py``'s ``Model_mode``. Passed straight through to smp.
 DEFAULT_ENCODER = "tu-convnext_large"
 
+#: Explicit Sentinel-2 L2A band list to fetch via geoai-datacubes. Must be
+#: passed explicitly -- geoai-datacubes' bands=None default for Sentinel-2
+#: only resolves to ["B04", "B08", "SCL", "AOT", "WVP"] (5 bands), not the
+#: full spectral stack this model expects. Matches step1_splitting.py's
+#: _S2_BANDS so fetched scenes have the same 13-band layout (B01-B12 + SCL)
+#: the training pipeline uses.
+S2_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
+            "B8A", "B09", "B11", "B12", "SCL"]
+
 
 # ----------------------------------------------------------------------------
 # Model construction / loading
@@ -300,7 +309,7 @@ def predict_from_geoai_datacubes(
 
     fetch_sentinel_data(
         mission="Sentinel-2",
-        bands=None,   # None -> defaults (13-band L2A incl. SCL)
+        bands=S2_BANDS,   # explicit 13-band L2A list; see S2_BANDS docstring
         time_range=time_range,
         roi=aoi,
         provider="earthsearch",
@@ -349,6 +358,7 @@ __all__ = [
     "HF_DEFAULT_REPO_ID",
     "HF_DEFAULT_FILENAME",
     "DEFAULT_ENCODER",
+    "S2_BANDS",
     "build_model",
     "load_model",
     "predict_depth",
