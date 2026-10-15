@@ -62,8 +62,8 @@ release being published).
 ## Training configuration
 
 TODO once the release checkpoint is trained. Should mirror the
-`params` dict at the top of `step2_train_test.py` for the training run
-that produced the released weights.
+`train` section of the config file (`sdb init-config`) for the training
+run that produced the released weights.
 
 - Encoder backbone: `tu-convnext_large`
 - Input channels: 12 (Sentinel-2 bands B01–B12)
