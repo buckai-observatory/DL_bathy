@@ -98,3 +98,51 @@ def test_scenes_without_scl_band_are_rejected(tmp_path):
     write_tif(tmp_path / "s.tif", np.ones((12, 4, 4)), "uint16")
     with pytest.raises(RuntimeError, match="13-band"):
         _scl_water_mask_from_scene(str(tmp_path / "s.tif"))
+
+
+def test_pytmd_tide_grid_queries_lon_lat_for_projected_scene(tmp_path, monkeypatch):
+    """Issue #14: a UTM scene must be sampled at WGS84 lon/lat, not at metres."""
+    import sys
+    import types
+    from datetime import datetime
+
+    from rasterio.warp import transform as warp_transform
+
+    from dl_bathy.split import generate_tide_grid
+    from tests.conftest import CRS, TRANSFORM, write_tif
+
+    write_tif(tmp_path / "s.tif", np.ones((6, 6)), "uint16")       # 60 m x 60 m UTM scene
+    with rasterio.open(tmp_path / "s.tif") as src:
+        left, bottom, right, top = src.bounds
+    xs, ys = warp_transform(CRS, "EPSG:4326", [left, right, right, left], [top, top, bottom, bottom])
+
+    calls = []
+
+    def tide_elevations(lons, lats, delta_time, crs=None, **kwargs):
+        lons, lats = np.asarray(lons), np.asarray(lats)
+        calls.append((lons, lats, crs))
+        return 0.1 * lons + 0.01 * lats
+
+    fake = types.ModuleType("pyTMD")
+    fake.compute = types.SimpleNamespace(tide_elevations=tide_elevations)
+    monkeypatch.setitem(sys.modules, "pyTMD", fake)
+
+    _, tide = generate_tide_grid(str(tmp_path / "s.tif"), datetime(2023, 5, 1, 2, 30),
+                                 str(tmp_path / "tide"))
+
+    (lons, lats, crs), = calls
+    assert crs == 4326
+    assert np.all((lons >= -180) & (lons <= 180) & (lats >= -90) & (lats <= 90))
+    # The coarse 1/16 degree grid covers the scene and stays close to it
+    assert lons.min() <= min(xs) and lons.max() >= max(xs)
+    assert lats.min() <= min(ys) and lats.max() >= max(ys)
+    assert lons.max() - lons.min() <= 0.25 and lats.max() - lats.min() <= 0.25
+    assert lons.size <= 25
+
+    # Interpolated back onto the pixel grid at each pixel's lon/lat
+    rows, cols = np.meshgrid(np.arange(6), np.arange(6), indexing="ij")
+    px, py = rasterio.transform.xy(TRANSFORM, rows.ravel(), cols.ravel())
+    plon, plat = warp_transform(CRS, "EPSG:4326", px, py)
+    expected = (0.1 * np.array(plon) + 0.01 * np.array(plat)).reshape(6, 6)
+    assert tide.shape == (6, 6)
+    np.testing.assert_allclose(tide, expected, atol=1e-4)
