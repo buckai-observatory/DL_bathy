@@ -40,6 +40,7 @@ import pandas as pd
 import rasterio
 from rasterio.transform import Affine
 from rasterio.warp import Resampling, reproject
+from rasterio.warp import transform as transform_coords
 from scipy.interpolate import griddata
 from skimage.transform import resize
 
@@ -189,9 +190,9 @@ def generate_tide_grid(sentinel_file, acq_datetime, tide_folder, model_name="EOT
     Build a spatially interpolated tide-height GeoTIFF for a Sentinel-2 scene
     using pyTMD (TIDE_SOURCE == 'pytmd').
 
-    Samples the tide model on a coarse 1/16° grid (≈ 6 km resolution) in a
-    single batched pyTMD call, then bilinearly interpolates to the full
-    Sentinel-2 pixel grid.
+    Reprojects the pixel centres to WGS84 lon/lat, samples the tide model on
+    a coarse 1/16° grid (≈ 6 km resolution) in a single batched pyTMD call,
+    then bilinearly interpolates to the full Sentinel-2 pixel grid.
 
     Parameters
     ----------
@@ -209,8 +210,12 @@ def generate_tide_grid(sentinel_file, acq_datetime, tide_folder, model_name="EOT
         crs           = src.crs
         height, width = src.height, src.width
         r_idx, c_idx  = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
-        xs, ys        = rasterio.transform.xy(transform, r_idx, c_idx)
-        lons, lats    = np.array(xs), np.array(ys)
+        xs, ys        = rasterio.transform.xy(transform, r_idx.ravel(), c_idx.ravel())
+
+    # pyTMD is called with crs=4326, so reproject pixel centres from the scene CRS (e.g. UTM)
+    if crs is not None and not crs.is_geographic:
+        xs, ys = transform_coords(crs, "EPSG:4326", xs, ys)
+    lons, lats = np.array(xs), np.array(ys)
 
     step        = 1 / 16.0
     coarse_lons = np.arange(np.floor(lons.min() / step) * step, np.ceil(lons.max() / step) * step + step, step)
