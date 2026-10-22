@@ -136,9 +136,8 @@ network on the public MagicBathyNet dataset.
 
 # Acknowledgements
 
-This work was supported by the U.S. National Science Foundation's CAIG
-program and The Ohio State University's BuckAI Observatory and School of
-Earth Sciences.
+This work was supported by The Ohio State University's BuckAI Observatory
+and School of Earth Sciences.
 
 # AI usage disclosure
 
