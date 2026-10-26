@@ -301,6 +301,7 @@ Key settings (`train` section):
 | `earlystop_patience` | `10` | Epochs without improvement before stopping |
 | `depth_type` | `"deep"` | `"deep"` or `"shallow"`. Note (issue #11): the code currently *excludes* the matching pixels, so `"deep"` trains on pixels shallower than `depth_threshold` |
 | `depth_threshold` | `20` | Depth boundary (m) for deep/shallow classification |
+| `test_depth_range` | `[-20, -0.01]` | `[deepest, shallowest]` depth (m) scored in the test metrics; test pixels outside it are excluded (on top of the `depth_type` filter). The range is written to the `Eval_depth_min_m` / `Eval_depth_max_m` columns of the metrics CSVs |
 
 **Outputs** (inside `Model_output/`, setting `LiDAR_Model`):
 
