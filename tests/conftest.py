@@ -7,7 +7,9 @@ from rasterio.transform import from_origin
 
 CRS = "EPSG:32755"
 TRANSFORM = from_origin(300000, 8400000, 10, 10)
-SIZE = 160
+SIZE = 512  # large enough that the consistent_spatial split's buffer zones
+            # (see dl_bathy.split.assign_split, issue #10) still leave
+            # patches for all of train/val/test
 DATE = "2023-05-01"
 CLOUD = (slice(100, 120), slice(20, 40))   # 20 x 20 px cloud
 

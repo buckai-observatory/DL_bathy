@@ -359,9 +359,13 @@ class BathyDataset(Dataset):
             H, W = 256, 256
             return torch.zeros(12, H, W), torch.zeros(1, H, W), torch.zeros(1, H, W)
 
-        # Exclude pixels outside the target depth range
-        if   self.depth_type == 'shallow': condition = np.abs(y) <  self.depth_threshold
-        elif self.depth_type == 'deep':    condition = np.abs(y) >  self.depth_threshold
+        # Exclude pixels outside the target depth range. `condition` marks
+        # pixels to EXCLUDE, so 'shallow' (train on |y| < threshold) must
+        # exclude what's >= threshold, and 'deep' the reverse (issue #11:
+        # these two were swapped, so depth_type='deep' silently trained on
+        # the shallow pixels and vice versa).
+        if   self.depth_type == 'shallow': condition = np.abs(y) >  self.depth_threshold
+        elif self.depth_type == 'deep':    condition = np.abs(y) <  self.depth_threshold
         else:                              condition = np.zeros_like(y, dtype=bool)
         mask[condition] = 0
 

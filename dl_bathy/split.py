@@ -329,11 +329,22 @@ def extract_patches_no_nans_gen(cube, lidar, valid_mask, patch_size=128, stride=
 
 def assign_split(coord, split_strategy, train_ratio, val_ratio, rng=random):
     """
-    Assign a patch to 'train', 'val' or 'test'.
+    Assign a patch to 'train', 'val', 'test', or None (buffered out).
 
-    'consistent_spatial' hashes the patch's top-left corner, so the same
+    'consistent_spatial' hashes the patch's containing block, so the same
     location always gets the same split across scenes; 'per_image' draws at
     random.
+
+    With stride < patch_size (overlapping sliding-window extraction),
+    hashing a patch's raw top-left corner lets two overlapping patches --
+    which share pixels -- land in different splits (issue #10: train/test
+    leakage). To prevent that, 'consistent_spatial' hashes on blocks twice
+    the patch size, and buffers out (returns None for) any patch whose
+    position would let it straddle a block boundary. Two patches that share
+    any pixel are then guaranteed to fall in the same block, and therefore
+    the same split -- at the cost of discarding patches near block edges
+    (roughly 35-45% of patches with 50% overlap; none with no overlap,
+    i.e. stride >= patch_size).
     """
     train_thresh = train_ratio
     val_thresh   = train_ratio + val_ratio
@@ -341,8 +352,13 @@ def assign_split(coord, split_strategy, train_ratio, val_ratio, rng=random):
         rv = rng.random()
         return 'train' if rv < train_thresh else ('val' if rv < val_thresh else 'test')
     if split_strategy == 'consistent_spatial':
-        r, c, _, _ = coord
-        ph = (r * 31 + c) % 100
+        r, c, r1, _ = coord
+        patch_size = max(r1 - r, 1)  # guard against degenerate/placeholder coords
+        block      = 2 * patch_size
+        if r % block + patch_size > block or c % block + patch_size > block:
+            return None
+        br, bc = r // block, c // block
+        ph = (br * 31 + bc) % 100
         return ('train' if ph < int(train_thresh * 100)
                 else ('val' if ph < int(val_thresh * 100) else 'test'))
     raise ValueError(f"Unknown split_strategy: '{split_strategy}'")
@@ -671,9 +687,15 @@ def run(cfg):
                     strict_nan_filter=cfg["strict_nan_filter"],
                 )
 
+                buffered_out = 0
                 for X, y, M, coord in patch_gen:
-                    patch_count += 1
                     set_name = assign_split(coord, cfg["split_strategy"], train_ratio, val_ratio)
+                    if set_name is None:
+                        # Buffered out to avoid train/test leakage between
+                        # overlapping patches (see assign_split docstring).
+                        buffered_out += 1
+                        continue
+                    patch_count += 1
 
                     # Save patch to temp storage
                     temp_path = os.path.join(temp_dir, f"patch_{patch_count:07d}.npz")
@@ -688,7 +710,8 @@ def run(cfg):
                     elif set_name == 'val':   val_meta.append(meta_entry)
                     else:                     test_meta.append(meta_entry)
 
-                print(f"Extracted {patch_count} valid patches.")
+                print(f"Extracted {patch_count} valid patches "
+                      f"({buffered_out} buffered out to prevent split leakage).")
                 if patch_count == 0:
                     print("No valid patches – skipping scene.")
                     continue
