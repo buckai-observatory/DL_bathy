@@ -91,6 +91,7 @@ TRAIN_DEFAULTS = {
     "reduce_lr_patience": 5,
     "depth_threshold": 20,
     "depth_type": "deep",
+    "test_depth_range": [-20, -0.01],  # [deepest, shallowest] depth (m) scored in the test metrics
     "loss_type": "swf",
     "SWF_beta": 5.0,
     "SWF_Z0": 10.0,

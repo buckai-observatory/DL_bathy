@@ -700,6 +700,7 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
         "lr":                            params["lr"],
         "depth_threshold":               params["depth_threshold"],
         "depth_type":                    params["depth_type"],
+        "test_depth_range":              params["test_depth_range"],
         "loss_type":                     params["loss_type"],
         "SWF_beta":                      params["SWF_beta"],
         "SWF_Z0":                        params["SWF_Z0"],
@@ -772,6 +773,13 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
         preds_folder = os.path.join(LiDAR_Model, "predictions")
         os.makedirs(preds_folder, exist_ok=True)
 
+        # Depth range (m) scored in the test metrics; within3m is further limited to 0-3 m
+        eval_min, eval_max = (float(d) for d in params["test_depth_range"])
+        if eval_min >= eval_max:
+            raise ValueError(f"test_depth_range must be [deepest, shallowest], got {params['test_depth_range']}")
+        eval_range_full = (eval_min, eval_max)
+        eval_range_3m   = (max(eval_min, -3.0), min(eval_max, -0.01))
+
         results          = []    # Full-range per-patch results
         within3m_results = []    # Within-3m per-patch results
         all_depths_gt, all_depths_pred       = [], []
@@ -810,7 +818,7 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             if   params["depth_type"] == 'shallow': cond = np.abs(y_patch) <  params["depth_threshold"]
             elif params["depth_type"] == 'deep':    cond = np.abs(y_patch) >  params["depth_threshold"]
             else:                                    cond = np.zeros_like(y_patch, dtype=bool)
-            cond         |= (y_patch < -20) | (y_patch > -0.01)
+            cond         |= (y_patch < eval_min) | (y_patch > eval_max)
             outside_3m    = (y_patch < -3.0) | (y_patch > -0.01) | np.isnan(y_patch)
             mask_patch[cond] = 0
             y_patch[cond]    = np.nan
@@ -866,8 +874,8 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             _record_metrics(y_patch3m, mask_patch3m, "within3m", within3m_results, all_3m_depths_gt, all_3m_depths_pred, all_3m_swf_wse, y_t_3m, m_t_3m)
             _record_metrics(y_patch,   mask_patch,   "full",     results,           all_depths_gt,    all_depths_pred,    all_swf_wse,    y_t_full, m_t_full)
 
-        def _summarise_and_save(results_list, gt_all, pred_all, swf_all, csv_name, label):
-            """Print overall test statistics and save results CSV."""
+        def _summarise_and_save(results_list, gt_all, pred_all, swf_all, csv_name, label, eval_range):
+            """Print overall test statistics and save results CSV (with the evaluated depth range)."""
             if not results_list:
                 print(f"No valid test results for [{label}].")
                 return
@@ -891,7 +899,9 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
                 "Classification_TP": cm['TP'], "Classification_TN": cm['TN'],
                 "Classification_FP": cm['FP'], "Classification_FN": cm['FN'],
             })
-            pd.DataFrame(results_list).to_csv(os.path.join(preds_folder, csv_name), index=False, float_format="%.4f")
+            df = pd.DataFrame(results_list)
+            df["Eval_depth_min_m"], df["Eval_depth_max_m"] = eval_range
+            df.to_csv(os.path.join(preds_folder, csv_name), index=False, float_format="%.4f")
 
             # Scatter plot: predicted vs ground truth
             sample = np.random.choice(n_pix, min(n_pix, 100_000), replace=False)
@@ -907,9 +917,9 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             plt.close()
 
         _summarise_and_save(within3m_results, all_3m_depths_gt, all_3m_depths_pred, all_3m_swf_wse,
-                            "within3m_prediction_metrics.csv", "within3m")
+                            "within3m_prediction_metrics.csv", "within3m", eval_range_3m)
         _summarise_and_save(results, all_depths_gt, all_depths_pred, all_swf_wse,
-                            "prediction_metrics.csv", "full")
+                            "prediction_metrics.csv", "full", eval_range_full)
 
     # -------------------------------------------------------------------------
     # 9. Elapsed time
