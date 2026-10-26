@@ -299,9 +299,9 @@ Key settings (`train` section):
 | `batch_size` | `16` | Batch size per GPU |
 | `lr` | `1e-4` | Initial learning rate |
 | `earlystop_patience` | `10` | Epochs without improvement before stopping |
-| `depth_type` | `"deep"` | `"deep"` or `"shallow"`. Note (issue #11): the code currently *excludes* the matching pixels, so `"deep"` trains on pixels shallower than `depth_threshold` |
+| `depth_type` | `"deep"` | `"deep"` or `"shallow"` — which pixels to train on relative to `depth_threshold` |
 | `depth_threshold` | `20` | Depth boundary (m) for deep/shallow classification |
-| `test_depth_range` | `[-20, -0.01]` | `[deepest, shallowest]` depth (m) scored in the test metrics; test pixels outside it are excluded (on top of the `depth_type` filter). The range is written to the `Eval_depth_min_m` / `Eval_depth_max_m` columns of the metrics CSVs |
+| `test_depth_range` | `[-30, -20]` | `[deepest, shallowest]` depth (m) scored in the test metrics; test pixels outside it are excluded (on top of the `depth_type` filter — must overlap the range `depth_type`/`depth_threshold` keeps, or nothing gets scored). The range is written to the `Eval_depth_min_m` / `Eval_depth_max_m` columns of the metrics CSVs |
 
 **Outputs** (inside `Model_output/`, setting `LiDAR_Model`):
 
