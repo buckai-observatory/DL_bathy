@@ -254,7 +254,7 @@ Key settings (`split` section; see `sdb init-config` for all of them):
 | `FETCH_RESOLUTION_M` | `10` | Output pixel size in metres; used when `DATA_SOURCE='geoai_datacubes'` |
 | `LOCAL_SCENES_DIR` | `'sentinel_images_L2A'` | Folder of pre-downloaded scenes; used when `DATA_SOURCE='local_scenes'` |
 | `Sentinel2_level` | `'L2A'` | `'L1C'` or `'L2A'` (the `DATA_SOURCE` modes are L2A-only; `'L1C'` uses the legacy `Dongsha_s2_img/` path) |
-| `split_strategy` | `'consistent_spatial'` | `'per_image'` or `'consistent_spatial'` (see issue #10: patches that overlap can still leak between splits) |
+| `split_strategy` | `'consistent_spatial'` | `'per_image'` or `'consistent_spatial'` (recommended to prevent data leakage; buffers out patches near split boundaries when `stride < patch_size`, see issue #10) |
 | `valid_pixel_threshold` | `0.1` | Minimum fraction of valid pixels per patch |
 | `strict_nan_filter` | `False` | Discard patches with any NaN in the LiDAR target |
 | `train_ratio` / `val_ratio` | `1.0` / `0.0` | Train/val split fractions (test = remainder); set both to `0.0` for inference-only sites |
@@ -373,7 +373,7 @@ DataParallel is enabled automatically when multiple CUDA GPUs are detected. On S
 
 ## Notes
 
-- **Data leakage**: Use `split_strategy = 'consistent_spatial'` (default) to ensure patches from the same geographic location are always assigned to the same split.
+- **Data leakage**: Use `split_strategy = 'consistent_spatial'` (default) to ensure patches from the same geographic location are always assigned to the same split. With overlapping patches (`stride < patch_size`), some patches near split boundaries are discarded rather than risking leakage — see `assign_split` in `dl_bathy/split.py`.
 - **Log scaling**: If `Logcube = True` in Step 1, set `scaling_method = "Log_band"` in Step 2 (no additional scaling is applied — the log transform was already applied to the saved patches).
 - **Tide correction**: If you don't have EOT20 data (or any tide model) available, set `TIDE_SOURCE = 'none'` in Step 1 to skip tidal correction, or `TIDE_SOURCE = 'custom'` to supply your own tide grids.
 
