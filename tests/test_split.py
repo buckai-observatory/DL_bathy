@@ -38,9 +38,6 @@ def test_zero_ratios_send_everything_to_test():
         assert {assign_split((r, 0, 0, 0), strategy, 0.0, 0.0, rng) for r in range(100)} == {"test"}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known issue #10: with stride < patch_size, overlapping patches can be assigned "
-    "to different splits, so the same pixels appear in train and test."))
 def test_consistent_spatial_split_has_no_pixel_overlap_between_train_and_test():
     patch, stride, size = 512, 256, 4096
     owner = {}

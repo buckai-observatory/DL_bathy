@@ -46,6 +46,17 @@ the next tag is cut.
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
   split ratios, patch size and stride, output folder names).
+- **Issue #10 (train/test leakage)**: `consistent_spatial` splitting now hashes
+  on blocks twice the patch size and buffers out any patch that would
+  straddle a block boundary, so overlapping sliding-window patches can no
+  longer land on both sides of the train/test split. This changes which
+  patches end up in train/val/test versus prior releases, and discards
+  patches near block edges (none with no overlap, i.e. `stride >=
+  patch_size`).
+- **Issue #11 (`depth_type` inverted)**: `depth_type="deep"` now actually
+  trains on pixels deeper than `depth_threshold` (and `"shallow"` on
+  shallower ones) — the two branches' comparisons were swapped, so each
+  setting silently trained on the other's pixel range.
 
 ## `v0.1.0` — 2026-08-08
 

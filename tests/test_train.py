@@ -9,16 +9,42 @@ pytest.importorskip("segmentation_models_pytorch")
 
 from dl_bathy.cli import main
 from dl_bathy.config import load_config
+from dl_bathy.patch_io import read_patch_tif
 from dl_bathy.train import BathyDataset
 
 
-def test_dataset_depth_type_masks_pixels_beyond_threshold(scene):
+def _shallowest_and_deepest_train_files(scene):
+    """Split the scene, then return (shallowest_file, deepest_file) among
+    the train patches, by mean valid depth -- the synthetic scene's depth
+    gradient (1 m west to 25 m east) means these reliably differ."""
     main(["split", "--config", str(scene)])
-    params = load_config(scene, "train")
     files = sorted((scene.parent / "Data" / "train").glob("*.tif"))
+    means = []
+    for f in files:
+        _, y, m, _ = read_patch_tif(str(f))
+        means.append(float(np.abs(y[m > 0]).mean()))
+    order = np.argsort(means)
+    return files[order[0]], files[order[-1]]
+
+
+def test_dataset_depth_type_deep_keeps_only_pixels_beyond_threshold(scene):
+    _, deep_file = _shallowest_and_deepest_train_files(scene)
+    params = load_config(scene, "train")
     params.update(depth_threshold=10, depth_type="deep")
-    _, y, m = BathyDataset([str(f) for f in files], params)[len(files) - 1]
-    # Documents current behaviour (issue #11): depth_type="deep" excludes pixels deeper than the threshold
+    _, y, m = BathyDataset([str(deep_file)], params)[0]
+    # Regression test for issue #11: depth_type="deep" must keep pixels
+    # deeper than the threshold (and exclude shallower ones), not the
+    # reverse.
+    assert (m > 0).sum() > 0
+    assert torch.all(torch.abs(y[m > 0]) >= 10)
+
+
+def test_dataset_depth_type_shallow_keeps_only_pixels_within_threshold(scene):
+    shallow_file, _ = _shallowest_and_deepest_train_files(scene)
+    params = load_config(scene, "train")
+    params.update(depth_threshold=10, depth_type="shallow")
+    _, y, m = BathyDataset([str(shallow_file)], params)[0]
+    assert (m > 0).sum() > 0
     assert torch.all(torch.abs(y[m > 0]) <= 10)
 
 
