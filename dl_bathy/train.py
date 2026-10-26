@@ -818,9 +818,12 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             X_in, y_patch, mask_patch, profile = read_patch_tif(tfile)
             base = os.path.splitext(os.path.basename(tfile))[0]
 
-            # Apply depth threshold
-            if   params["depth_type"] == 'shallow': cond = np.abs(y_patch) <  params["depth_threshold"]
-            elif params["depth_type"] == 'deep':    cond = np.abs(y_patch) >  params["depth_threshold"]
+            # Apply depth threshold (must match BathyDataset.__getitem__'s
+            # training-time filter -- issue #11 fixed that copy but missed
+            # this one, so test-set scoring was still evaluating the
+            # opposite depth range from what the model was trained on)
+            if   params["depth_type"] == 'shallow': cond = np.abs(y_patch) >  params["depth_threshold"]
+            elif params["depth_type"] == 'deep':    cond = np.abs(y_patch) <  params["depth_threshold"]
             else:                                    cond = np.zeros_like(y_patch, dtype=bool)
             cond         |= (y_patch < eval_min) | (y_patch > eval_max)
             outside_3m    = (y_patch < -3.0) | (y_patch > -0.01) | np.isnan(y_patch)
