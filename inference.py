@@ -40,7 +40,12 @@ from torch import nn
 #: Default HF Hub repository holding published DL_bathy checkpoints.
 #: Weights are versioned there; update the ``revision`` argument to pin to a
 #: specific release.
-HF_DEFAULT_REPO_ID = "buckai-observatory/dl-bathy-weights"
+#: TEMPORARY: weights are published at Amy5133/dl-bathy-weights pending a
+#: transfer to the buckai-observatory org on Hugging Face (needs org access
+#: there first). Update back to "buckai-observatory/dl-bathy-weights" once
+#: that transfer happens -- HF's repo move preserves all files, so this is
+#: the only line that needs to change.
+HF_DEFAULT_REPO_ID = "Amy5133/dl-bathy-weights"
 
 #: Default checkpoint filename inside the HF repo. Matches the filename that
 #: step2_train_test.py writes at end-of-training.
@@ -224,7 +229,9 @@ def predict_depth(
     Returns
     -------
     np.ndarray
-        Shape ``(H, W)`` -- predicted depth in metres (positive = deeper).
+        Shape ``(H, W)`` -- predicted depth in metres (negative = deeper,
+        0 = sea level), matching the sign convention of the LiDAR targets
+        this model was trained on (see ``dl_bathy/split.py``).
         Same dtype as ``model``'s output (typically float32).
     """
     if device is None:

@@ -56,7 +56,22 @@ the next tag is cut.
 - **Issue #11 (`depth_type` inverted)**: `depth_type="deep"` now actually
   trains on pixels deeper than `depth_threshold` (and `"shallow"` on
   shallower ones) — the two branches' comparisons were swapped, so each
-  setting silently trained on the other's pixel range.
+  setting silently trained on the other's pixel range. A second, separate
+  copy of this same inverted comparison in the test-set scoring loop was
+  missed in the original fix and is now corrected too, so test metrics are
+  computed on the same depth range the model was trained on.
+- `test_depth_range`'s default changed from `[-20, -0.01]` to `[-30, -20]`
+  to match the corrected `depth_type="deep"` default (the old default only
+  overlapped the pre-fix, inverted `depth_type` behavior; combined with the
+  #11 fix it scored zero test pixels).
+- `inference.py`'s `HF_DEFAULT_REPO_ID` temporarily points at
+  `Amy5133/dl-bathy-weights` instead of `buckai-observatory/dl-bathy-weights`,
+  which doesn't exist yet — the inference-only quickstart and demo notebook
+  were failing with no arguments. Revert once the weights repo is
+  transferred to the `buckai-observatory` org.
+- `predict_depth`'s docstring said output depth is "positive = deeper";
+  it's actually negative (0 = sea level), matching the LiDAR target
+  convention used everywhere else in the pipeline.
 
 ## `v0.1.0` — 2026-08-08
 

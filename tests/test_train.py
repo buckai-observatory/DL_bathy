@@ -60,13 +60,21 @@ def test_sdb_train_end_to_end_on_cpu(scene):
     assert "Epoch 001" in (out / "console_output_step2.log").read_text()
 
 
-def test_test_depth_range_defaults_to_previous_20m_cutoff():
-    assert load_config(None, "train")["test_depth_range"] == [-20, -0.01]
+def test_test_depth_range_default_overlaps_default_depth_type():
+    # test_depth_range's default must overlap the range depth_type/
+    # depth_threshold actually keeps, or test-set scoring silently sees
+    # zero pixels. Defaults: depth_type="deep" keeps |y| > 20, so the
+    # range starts at -20 (not the pre-issue-#11-fix value of -20..-0.01,
+    # which only worked because depth_type was inverted back then).
+    cfg = load_config(None, "train")
+    assert cfg["test_depth_range"] == [-30, -20]
+    assert cfg["depth_type"] == "deep" and cfg["depth_threshold"] == 20
 
 
 def test_sdb_train_scores_only_test_depth_range_and_records_it(scene):
     pd = pytest.importorskip("pandas")
     cfg = yaml.safe_load(scene.read_text())
+    cfg["train"]["depth_type"] = "shallow"  # so it overlaps the overridden range below
     cfg["train"]["test_depth_range"] = [-10, -0.01]
     scene.write_text(yaml.safe_dump(cfg))
     main(["split", "--config", str(scene)])
@@ -79,3 +87,23 @@ def test_sdb_train_scores_only_test_depth_range_and_records_it(scene):
 
     within3m = pd.read_csv(preds / "within3m_prediction_metrics.csv")
     assert (within3m["Eval_depth_min_m"] == -3).all() and (within3m["Eval_depth_max_m"] == -0.01).all()
+
+
+def test_sdb_train_test_time_depth_type_matches_training_time_filter(scene):
+    # Regression test: the test-set scoring loop had its own copy of the
+    # depth_type filter that was still inverted after issue #11's fix to
+    # BathyDataset.__getitem__ -- test-set metrics were scoring the
+    # opposite depth range from what the model was actually trained on.
+    pd = pytest.importorskip("pandas")
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["train"]["depth_type"] = "deep"
+    cfg["train"]["depth_threshold"] = 10
+    cfg["train"]["test_depth_range"] = [-25, -0.01]  # wide enough not to constrain on its own
+    scene.write_text(yaml.safe_dump(cfg))
+    main(["split", "--config", str(scene)])
+    assert main(["train", "--config", str(scene)]) == 0
+    preds = scene.parent / "Model_output" / "predictions"
+
+    full = pd.read_csv(preds / "prediction_metrics.csv")
+    assert len(full) > 0
+    assert (full["GT_max_depth_m"] <= -10).all()  # 'deep' keeps only |y| >= threshold
