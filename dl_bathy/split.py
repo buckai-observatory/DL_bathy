@@ -298,12 +298,13 @@ def extract_patches_no_nans_gen(cube, lidar, valid_mask, patch_size=128, stride=
       1. Flexible filter : fraction of valid pixels >= min_valid_ratio.
       2. Strict filter   : no NaN in the LiDAR target (only when strict_nan_filter=True).
 
-    Yields
-    ------
-    patch_cube  : float32 (bands, P, P)
-    patch_lidar : float32 (P, P)
-    patch_mask  : float32 (P, P)   1=valid, 0=invalid
-    coords      : tuple (r0, c0, r1, c1)
+    Returns
+    -------
+    iterator of tuple
+        A generator of ``(patch_cube, patch_lidar, patch_mask, coords)``:
+        ``patch_cube`` is float32 (bands, P, P), ``patch_lidar`` and
+        ``patch_mask`` are float32 (P, P) with 1 = valid and 0 = invalid in
+        the mask, and ``coords`` is the tuple ``(r0, c0, r1, c1)``.
     """
     _, H, W = cube.shape
     for r in range(0, H - patch_size + 1, stride):

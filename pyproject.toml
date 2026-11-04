@@ -33,6 +33,9 @@ inference = ["torch", "torchvision", "segmentation-models-pytorch", "huggingface
 fetch = ["geoai-datacubes"]
 tide = ["pyTMD"]
 dev = ["pytest"]
+# Documentation website: API reference from docstrings. quartodoc 0.11 is not
+# compatible with griffe 2.x.
+docs = ["quartodoc>=0.10", "griffe<2"]
 all = ["dl-bathy[train,inference,fetch,tide]"]
 
 [project.scripts]

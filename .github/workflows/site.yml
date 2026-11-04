@@ -1,0 +1,81 @@
+name: Documentation website
+
+# Renders README.md, docs/*.md, the project files, notebooks/*.ipynb and the
+# API reference (quartodoc, from the docstrings) with Quarto
+# (site/build_site.py). Pull requests build the site to check it; pushes to
+# main also deploy it to GitHub Pages.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.md'
+      - 'docs/**'
+      - 'notebooks/**'
+      - 'site/**'
+      - 'dl_bathy/**'
+      - 'losses.py'
+      - 'inference.py'
+      - 'pyproject.toml'
+      - '.github/workflows/site.yml'
+  pull_request:
+    paths:
+      - '*.md'
+      - 'docs/**'
+      - 'notebooks/**'
+      - 'site/**'
+      - 'dl_bathy/**'
+      - 'losses.py'
+      - 'inference.py'
+      - 'pyproject.toml'
+      - '.github/workflows/site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # setuptools_scm reads the version from git tags
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.8.26
+      - name: Install the package and the docs tools
+        # quartodoc reads the docstrings statically (griffe), so the heavy
+        # extras (PyTorch, geoai-datacubes, pyTMD) are not needed
+        run: pip install -e ".[docs]"
+      - name: Build the Quarto sources
+        run: python3 site/build_site.py
+      - name: Build the API reference from the docstrings
+        working-directory: site/_build
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m quartodoc build --verbose
+      - name: Render
+        run: quarto render site/_build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/_build/_site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
