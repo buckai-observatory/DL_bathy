@@ -51,7 +51,7 @@ def masked_sum_rpe_and_count(pred, target, mask, eps=1e-6):
     return (torch.abs(pred_v - targ_v) / denom).sum(), n_valid
 
 
-def masked_sum_swf_and_count(pred, target, mask, beta=5.0, Z0=20.0):
+def masked_sum_swf_and_count(pred, target, mask, beta=5.0, Z0=10.0):
     """
     Smooth Weight Function (SWF) loss - depth-weighted squared error.
 

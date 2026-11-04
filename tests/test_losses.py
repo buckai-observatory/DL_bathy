@@ -134,3 +134,21 @@ def test_all_losses_are_non_negative(loss_fn):
     total, n_valid = loss_fn(pred, target, mask)
     assert total.item() >= 0.0
     assert n_valid.item() == mask.sum().item()
+
+
+def test_swf_defaults_match_train_config():
+    # masked_sum_swf_and_count's defaults must match the SWF_beta / SWF_Z0
+    # values that `sdb train` uses, so calling it without them in a notebook
+    # or test gives the same loss as training.
+    from dl_bathy.config import TRAIN_DEFAULTS
+
+    pred   = torch.tensor([1.0, 4.0, 12.0])
+    target = torch.tensor([2.0, 6.0, 15.0])
+    mask   = torch.ones(3)
+
+    default_total, _ = masked_sum_swf_and_count(pred, target, mask)
+    config_total, _  = masked_sum_swf_and_count(
+        pred, target, mask,
+        beta=TRAIN_DEFAULTS["SWF_beta"], Z0=TRAIN_DEFAULTS["SWF_Z0"],
+    )
+    assert math.isclose(default_total.item(), config_total.item(), rel_tol=1e-6)
