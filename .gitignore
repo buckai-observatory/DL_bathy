@@ -7,3 +7,5 @@ dist/
 .venv/
 paper.pdf
 jats/
+# documentation website build (site/build_site.py)
+site/_build/

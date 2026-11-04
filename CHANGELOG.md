@@ -11,6 +11,11 @@ the next tag is cut.
 
 ### Added
 
+- **Documentation website** at <https://buckai-observatory.org/DL_bathy/>:
+  `site/build_site.py` renders README.md, docs/, the project files, the
+  notebooks and an API reference generated from the docstrings (quartodoc)
+  with Quarto; `.github/workflows/site.yml` builds it on pull requests and
+  deploys it to GitHub Pages from `main`. New `docs` extra.
 - **Installable package and command line**: `pyproject.toml` (`pip install -e ".[all]"`,
   with `train`, `inference`, `fetch`, `tide` and `dev` extras) and an `sdb` command:
   `sdb split`, `sdb train` and `sdb init-config`. The step code moved into

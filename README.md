@@ -4,9 +4,12 @@
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![tests](https://github.com/buckai-observatory/DL_bathy/actions/workflows/tests.yml/badge.svg)](https://github.com/buckai-observatory/DL_bathy/actions/workflows/tests.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21845182.svg)](https://doi.org/10.5281/zenodo.21845182)
+[![Documentation website](https://img.shields.io/badge/documentation-website-0A7BBB.svg?style=flat-square)](https://buckai-observatory.org/DL_bathy/)
 [![BuckAI Observatory](https://img.shields.io/badge/BuckAI-Observatory-BA0C2F.svg?style=flat-square)](https://ai-observatory.osu.edu)
 
 A two-step pipeline for training a deep learning model to estimate shallow-water bathymetry from Sentinel-2 multispectral imagery using available bathymetric measurements as ground truth.
+
+Documentation website, with the API reference generated from the docstrings: <https://buckai-observatory.org/DL_bathy/>
 
 ---
 

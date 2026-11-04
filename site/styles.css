@@ -1,0 +1,10 @@
+/* the "View this page on GitHub" link at the top of every page */
+.github-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
