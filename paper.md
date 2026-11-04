@@ -94,14 +94,14 @@ or evaluation protocols that mix training and test pixels from the same
 region, which can substantially overstate cross-regional transferability.
 `DL_bathy` instead couples modern, ImageNet-pretrained convolutional
 backbones with a train/test protocol that reserves entire geographic
-regions for testing. @hsu2026sdb benchmarks it against a task-specific
-bathymetry network, Swin-BathyUNet [@agrafiotis2025swinbathyunet], on the
-public MagicBathyNet dataset [@agrafiotis2024magicbathynet].
-Swin-BathyUNet's open implementation targets that network and its
-training setup; `DL_bathy` provides the data preparation (Sentinel-2
-fetching, cloud and water masks, tide correction, spatially-aware splits)
-together with interchangeable general-purpose backbones and loss
-functions.
+regions for testing. @hsu2026sdb also compared these DeepLabV3+ backbones
+with the task-specific Swin-BathyUNet [@agrafiotis2025swinbathyunet] on the
+aerial RGB MagicBathyNet benchmark [@agrafiotis2024magicbathynet], where
+they reached lower RMSE than its published results with substantially
+fewer parameters. Swin-BathyUNet's code implements that one network;
+`DL_bathy` provides the Sentinel-2 data preparation (scene fetching, cloud
+and water masks, tide correction and spatially-aware splits) together with
+interchangeable general-purpose backbones and loss functions.
 
 # Software design
 
