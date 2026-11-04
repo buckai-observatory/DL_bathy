@@ -60,10 +60,14 @@ the next tag is cut.
   copy of this same inverted comparison in the test-set scoring loop was
   missed in the original fix and is now corrected too, so test metrics are
   computed on the same depth range the model was trained on.
-- `test_depth_range`'s default changed from `[-20, -0.01]` to `[-30, -20]`
-  to match the corrected `depth_type="deep"` default (the old default only
-  overlapped the pre-fix, inverted `depth_type` behavior; combined with the
-  #11 fix it scored zero test pixels).
+- **Default depth range is 0–20 m again**: `depth_type` now defaults to
+  `"shallow"` and `test_depth_range` to `[-20, -0.01]`. Before the #11 fix,
+  the default `"deep"` actually trained on 0–20 m, which is what the paper
+  and the released weights use (their `metadata.json` still says `"deep"`).
+  After the fix, keeping `"deep"` as the default would have switched default
+  training to 20–30 m. Configs that set `depth_type: deep` explicitly now
+  train on depths greater than `depth_threshold`; use `shallow` to get the
+  old behaviour.
 - `inference.py`'s `HF_DEFAULT_REPO_ID` temporarily points at
   `Amy5133/dl-bathy-weights` instead of `buckai-observatory/dl-bathy-weights`,
   which doesn't exist yet — the inference-only quickstart and demo notebook
