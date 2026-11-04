@@ -60,15 +60,22 @@ def test_sdb_train_end_to_end_on_cpu(scene):
     assert "Epoch 001" in (out / "console_output_step2.log").read_text()
 
 
-def test_test_depth_range_default_overlaps_default_depth_type():
-    # test_depth_range's default must overlap the range depth_type/
-    # depth_threshold actually keeps, or test-set scoring silently sees
-    # zero pixels. Defaults: depth_type="deep" keeps |y| > 20, so the
-    # range starts at -20 (not the pre-issue-#11-fix value of -20..-0.01,
-    # which only worked because depth_type was inverted back then).
+def test_depth_defaults_train_and_score_0_to_20_m():
+    # The paper and the released weights cover 0-20 m. The defaults must
+    # train on that range (depth_type="shallow" keeps |y| <= 20) and score
+    # the same range, or test-set scoring silently sees zero pixels.
     cfg = load_config(None, "train")
-    assert cfg["test_depth_range"] == [-30, -20]
-    assert cfg["depth_type"] == "deep" and cfg["depth_threshold"] == 20
+    assert cfg["depth_type"] == "shallow" and cfg["depth_threshold"] == 20
+    assert cfg["test_depth_range"] == [-20, -0.01]
+
+
+def test_sdb_train_with_default_depth_settings_scores_0_to_20_m(scene):
+    pd = pytest.importorskip("pandas")
+    main(["split", "--config", str(scene)])
+    assert main(["train", "--config", str(scene)]) == 0
+    full = pd.read_csv(scene.parent / "Model_output" / "predictions" / "prediction_metrics.csv")
+    assert len(full) > 0
+    assert (full["GT_min_depth_m"] >= -20).all() and (full["GT_max_depth_m"] <= -0.01).all()
 
 
 def test_sdb_train_scores_only_test_depth_range_and_records_it(scene):

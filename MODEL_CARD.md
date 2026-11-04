@@ -68,6 +68,10 @@ run that produced the released weights.
 - Encoder backbone: `tu-convnext_large`
 - Input channels: 12 (Sentinel-2 bands B01–B12)
 - Output: single-channel regression, no activation (raw depth in metres)
+- Depth range: trained on 0–20 m. Each checkpoint's `metadata.json` records
+  `depth_type: "deep"` because it was trained before issue #11 was fixed,
+  when `"deep"` kept depths shallower than `depth_threshold`. With the
+  current code, the same setting is `depth_type: "shallow"` (the default).
 - Loss: TODO — SSE (RMSE), MAE, RPE, SWF (depth-weighted RMSE), or Huber (which one, and its hyperparameters)
 - Optimiser: AdamW, weight-decay 1e-4, initial LR TODO
 - Scheduler: ReduceLROnPlateau (factor 0.5, patience TODO)

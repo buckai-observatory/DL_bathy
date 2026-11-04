@@ -90,12 +90,12 @@ TRAIN_DEFAULTS = {
     "earlystop_patience": 10,
     "reduce_lr_patience": 5,
     "depth_threshold": 20,
-    "depth_type": "deep",
-    "test_depth_range": [-30, -20],  # [deepest, shallowest] depth (m) scored in the test metrics;
-                                      # must overlap the depth_type/depth_threshold range above --
-                                      # with depth_type="deep" (keeps |y| > 20), the shallowest
-                                      # pixel this can score is -20, so the range starts there,
-                                      # down to deepestDepth2Train's default of -30 (step1)
+    # Defaults train and score on 0-20 m, as in the paper and the released
+    # weights. Those weights' metadata.json says depth_type "deep": they were
+    # trained before issue #11 was fixed, when "deep" kept |y| < 20.
+    "depth_type": "shallow",
+    "test_depth_range": [-20, -0.01],  # [deepest, shallowest] depth (m) scored in the test metrics;
+                                        # must overlap the range depth_type/depth_threshold keeps
     "loss_type": "swf",
     "SWF_beta": 5.0,
     "SWF_Z0": 10.0,
