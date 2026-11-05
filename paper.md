@@ -24,8 +24,6 @@ affiliations:
   - name: 'BuckAI Observatory, College of Arts and Sciences, The Ohio State University, Columbus, OH, USA'
     index: 2
 date: 2026-08-08
-version: 0.1.0
-doi: 10.5281/zenodo.21845182
 bibliography: paper.bib
 ---
 
@@ -33,7 +31,7 @@ bibliography: paper.bib
 
 `DL_bathy` is an open-source, two-step Python pipeline for training deep
 learning models to estimate shallow-water bathymetry (water depth, 0-20 m)
-from Sentinel-2 multispectral imagery. Step 1 (`step1_splitting.py`) turns
+from Sentinel-2 multispectral imagery. Step 1 (`sdb split`) turns
 Sentinel-2 scenes and reference depth data into standardized,
 georeferenced training patches: it fetches Sentinel-2 L2A scenes over an
 AOI and time window via the `geoai-datacubes` package
@@ -42,7 +40,8 @@ scenes), derives cloud and non-water masks from the L2A Scene
 Classification Layer (SCL), applies tidal correction via the EOT20 global
 ocean tide model [@hartdavis2021eot20] using the `pyTMD` package
 [@sutterley2024pytmd] (or a user-supplied tide grid), and produces spatially-aware
-train/validation/test splits with optional balancing and augmentation. Step 2 (`step2_train_test.py`) trains a DeepLabV3+
+train/validation/test splits with optional balancing and augmentation.
+Step 2 (`sdb train`) trains a DeepLabV3+
 segmentation model [@chen2018deeplabv3plus] on these patches, with a choice
 of encoder backbone (ResNet-50/101 [@he2016resnet], EfficientNet-B4
 [@tan2019efficientnet], or ConvNeXt-Large [@liu2022convnext]) and a choice
@@ -52,7 +51,9 @@ RMSE that emphasizes shallow-water accuracy — implemented in PyTorch
 [@paszke2019pytorch] using the Segmentation Models PyTorch library
 [@iakubovskii2019smp]. The pipeline evaluates trained models on a held-out
 test set and produces per-patch depth predictions, error maps, and
-aggregate accuracy metrics.
+aggregate accuracy metrics. Pretrained weights are published on the
+Hugging Face Hub, so users without reference depth data can run
+prediction on new Sentinel-2 scenes directly.
 
 # Statement of need
 
@@ -83,47 +84,68 @@ re-implementing them from scratch.
 # State of the field
 
 Traditional SDB methods include linear regression on log-transformed
-reflectance and log band-ratio approaches, refined over time to handle
-varying water optical conditions but remaining largely site-specific.
-Machine learning methods (Random Forest, gradient boosting, XGBoost) improve
-accuracy but remain sensitive to training-region characteristics. Prior
-deep-learning SDB work has generally used shallow architectures, limited
-training data, or evaluation protocols that mix training and test pixels
-from the same region, which can substantially overstate cross-regional
-transferability. `DL_bathy` instead couples modern, ImageNet-pretrained
-convolutional backbones with a rigorous train/test protocol that reserves
-entire geographic regions for testing, and benchmarks directly against a
-task-specific bathymetry network (Swin-BathyUNet) on the public
-MagicBathyNet dataset.
+reflectance [@lyzenga1978passive] and the log band-ratio method
+[@stumpf2003determination], refined over time to handle varying water
+optical conditions but remaining largely site-specific. Machine learning
+methods (Random Forest, gradient boosting, XGBoost) improve accuracy but
+remain sensitive to training-region characteristics. Prior deep-learning
+SDB work has generally used shallow architectures, limited training data,
+or evaluation protocols that mix training and test pixels from the same
+region, which can substantially overstate cross-regional transferability.
+`DL_bathy` instead couples modern, ImageNet-pretrained convolutional
+backbones with a train/test protocol that reserves entire geographic
+regions for testing. @hsu2026sdb also compared these DeepLabV3+ backbones
+with the task-specific Swin-BathyUNet [@agrafiotis2025swinbathyunet] on the
+aerial RGB MagicBathyNet benchmark [@agrafiotis2024magicbathynet], where
+they reached lower RMSE than its published results with substantially
+fewer parameters. Swin-BathyUNet's code implements that one network;
+`DL_bathy` provides the Sentinel-2 data preparation (scene fetching, cloud
+and water masks, tide correction and spatially-aware splits) together with
+interchangeable general-purpose backbones and loss functions.
 
 # Software design
 
-The pipeline is organized as two standalone, configuration-driven scripts
-plus a small shared module:
+`DL_bathy` is a pip-installable Python package (with optional `train`,
+`inference`, `fetch` and `tide` extras) with a
+command-line interface, `sdb`, and one YAML configuration file whose
+`split` and `train` sections hold every setting. `sdb init-config`
+writes an example file with all defaults, and unknown keys are rejected
+so that typos fail loudly. The package has four parts:
 
-- **`step1_splitting.py`** — fetches Sentinel-2 L2A scenes and derives
-  cloud/water masks from the Scene Classification Layer via
-  `geoai-datacubes` (or reads user-supplied scenes), computes EOT20 tidal
-  corrections per acquisition via `pyTMD`, extracts
-  fixed-size image patches co-registered with reference bathymetry,
-  applies depth-based balancing, and (optionally) augments patches with
+- **`dl_bathy.split`** (`sdb split`) fetches Sentinel-2 L2A scenes over
+  an AOI and time window via `geoai-datacubes`, or reads user-supplied
+  scenes, and derives cloud and non-water masks from the Scene
+  Classification Layer. It computes per-acquisition tide corrections with
+  `pyTMD` and EOT20 (or reads user-supplied tide grids, or skips the
+  correction), extracts fixed-size patches co-registered with reference
+  bathymetry, balances them by depth and optionally augments them with
   rotations and flips. Output patches are 14-band GeoTIFFs: 12 Sentinel-2
-  reflectance bands, a depth band, and a validity mask.
-- **`step2_train_test.py`** — loads patches via a lazy-loading PyTorch
-  `Dataset`, builds a DeepLabV3+ model with the selected encoder backbone,
+  reflectance bands, a depth band, and a validity mask. The
+  `consistent_spatial` split assigns patches to train, validation or test
+  by spatial block, so that the same location falls in the same split in
+  every scene and overlapping patches never straddle two splits.
+- **`dl_bathy.train`** (`sdb train`) loads patches through a lazy-loading
+  PyTorch `Dataset`, builds a DeepLabV3+ model with the selected encoder,
   and trains it with early stopping, learning-rate scheduling, and
-  optional multi-GPU (`DataParallel`) support. After training, it runs
+  optional multi-GPU (`DataParallel`) support. After training it runs
   inference on the test set and writes per-patch prediction GeoTIFFs,
-  error visualizations, and aggregate metrics.
-- **`losses.py`** — the five masked, depth-aware loss functions
-  (RMSE/SSE, MAE, RPE, SWF, Huber) used by Step 2, factored into a
-  standalone module with a small `pytest` unit-test suite so the loss
-  logic can be verified independently of the GDAL/Earth-Engine-heavy
-  data pipeline.
+  error maps and aggregate metrics.
+- **`losses.py`** holds the five masked, depth-aware loss functions
+  (RMSE, MAE, RPE, SWF and Huber), separate from the training loop so
+  that they can be tested on their own.
+- **`inference.py`** rebuilds the trained model from the weights on the
+  Hugging Face Hub. `predict_depth` runs it on any array of Sentinel-2
+  bands, and `predict_from_geoai_datacubes` fetches the imagery for an
+  AOI and predicts depth in one call. A Colab notebook demonstrates this
+  path against the public Great Barrier Reef ground truth shipped in the
+  repository.
 
-Both scripts follow a `USER CONFIGURATION` block pattern at the top of the
-file, so common changes (data paths, backbone choice, loss function,
-hyperparameters) do not require touching the rest of the code.
+The heavy dependencies are optional extras, so `sdb split` installs and
+runs without PyTorch. The test suite runs on synthetic scenes in
+continuous integration on Linux and Windows, including an end-to-end
+`sdb split` and a one-epoch CPU `sdb train`, and needs no network
+access, tide model or GPU. The original `step1_splitting.py` and
+`step2_train_test.py` scripts remain as thin wrappers around the package.
 
 # Research impact statement
 
@@ -141,12 +163,20 @@ and School of Earth Sciences.
 
 # AI usage disclosure
 
-Repository hygiene documentation (`LICENSE`, `CITATION.cff`,
-`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, this `paper.md`) and the
-`losses.py` test suite were prepared with the assistance of Anthropic's
-Claude. The loss-function extraction and tests were reviewed and verified
-by running the test suite against the existing implementation before being
-committed. All modeling code, experimental design, and results reported in
-@hsu2026sdb are the authors' own work.
+Anthropic's Claude (through Claude Code) was used to help write the
+repository documentation (`README.md`, `CITATION.cff`, `CONTRIBUTING.md`,
+`CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `MODEL_CARD.md`) and this paper; to
+replace the Google Earth Engine data access with `geoai-datacubes`; to
+write the inference module and demo notebook; to replace the Fortran DTU23
+tide model with `pyTMD` and EOT20; to package the code with the `sdb`
+command line and YAML configuration; and to write the unit tests,
+smoke tests and continuous-integration configuration. It was also used to
+find and fix bugs, including train/test leakage between overlapping
+patches and an inverted `depth_type` setting. The modelling approach
+(backbone choices, the SWF loss and the data-splitting strategy), the
+experimental design and the results reported in @hsu2026sdb are the
+authors' own work. All AI-assisted changes
+were reviewed by the authors and checked by running the test suite before
+being merged.
 
 # References
