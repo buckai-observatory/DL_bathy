@@ -32,6 +32,9 @@ import segmentation_models_pytorch as smp
 import torch
 from torch import nn
 
+from dl_bathy.bands import normalize_reflectance
+from dl_bathy.config import SPLIT_DEFAULTS
+
 
 # ----------------------------------------------------------------------------
 # Configuration
@@ -210,47 +213,67 @@ def predict_depth(
     model:  nn.Module,
     s2_bands: Union[np.ndarray, torch.Tensor],
     device: Union[str, torch.device, None] = None,
+    normalize: bool = True,
+    log_scale: bool = SPLIT_DEFAULTS["Logcube"],
+    band_normalization: float = SPLIT_DEFAULTS["band_normalization"],
+    epsilon: float = SPLIT_DEFAULTS["Epsilon"],
 ) -> np.ndarray:
     """Predict per-pixel water depth from a Sentinel-2 L2A tile.
+
+    The bands are normalised exactly as ``sdb split`` normalises training
+    patches (:func:`dl_bathy.bands.normalize_reflectance`; by default
+    ``log(band / 10000 + 1e-6)``), and invalid values are set to 0 as in
+    training.
 
     Parameters
     ----------
     model : torch.nn.Module
         A model returned by :func:`load_model`.
     s2_bands : np.ndarray | torch.Tensor
-        Shape ``(12, H, W)`` -- Sentinel-2 L2A bands 1--12 (B01--B12) in the
-        same order as ``step1_splitting.py`` writes them. dtype float32.
-        NaN pixels (clouds / no-data) are allowed; the model will emit
-        predictions for them too, so mask post-hoc with the SCL band if
-        needed.
+        Shape ``(12, H, W)`` -- Sentinel-2 L2A bands 1--12 (B01--B12), as
+        raw digital numbers (reflectance x 10000), in the band order
+        ``sdb split`` uses. NaN pixels (clouds / no-data) are allowed.
     device : str | torch.device | None
         Where to run the forward pass. Defaults to the model's device.
+    normalize : bool
+        Set to False if ``s2_bands`` is already normalised, for example the
+        first 12 bands of a patch written by ``sdb split``.
+    log_scale, band_normalization, epsilon : bool, float, float
+        The ``Logcube``, ``band_normalization`` and ``Epsilon`` settings the
+        model was trained with. The defaults match ``sdb split``'s defaults
+        and the released weights.
 
     Returns
     -------
     np.ndarray
-        Shape ``(H, W)`` -- predicted depth in metres (negative = deeper,
-        0 = sea level), matching the sign convention of the LiDAR targets
-        this model was trained on (see ``dl_bathy/split.py``).
-        Same dtype as ``model``'s output (typically float32).
+        Shape ``(H, W)``, float32 -- predicted depth in metres (negative =
+        deeper, 0 = sea level), matching the sign convention of the LiDAR
+        targets this model was trained on (see ``dl_bathy/split.py``). NaN
+        where any input band is NaN or cannot be normalised.
     """
     if device is None:
         device = next(model.parameters()).device
 
-    if isinstance(s2_bands, np.ndarray):
-        x = torch.from_numpy(s2_bands.astype(np.float32))
-    else:
-        x = s2_bands.float()
+    if isinstance(s2_bands, torch.Tensor):
+        s2_bands = s2_bands.detach().cpu().numpy()
+    bands = np.asarray(s2_bands, dtype=np.float64)
 
-    if x.ndim != 3 or x.shape[0] != 12:
+    if bands.ndim != 3 or bands.shape[0] != 12:
         raise ValueError(
-            f"s2_bands must have shape (12, H, W); got {tuple(x.shape)}."
+            f"s2_bands must have shape (12, H, W); got {tuple(bands.shape)}."
         )
 
-    x = x.unsqueeze(0).to(device)   # (1, 12, H, W)
+    if normalize:
+        bands = normalize_reflectance(bands, log_scale, band_normalization, epsilon)
+    invalid = ~np.isfinite(bands).all(axis=0)
+    bands = np.nan_to_num(bands, nan=0.0, posinf=0.0, neginf=0.0)
+
+    x = torch.from_numpy(bands.astype(np.float32)).unsqueeze(0).to(device)   # (1, 12, H, W)
     with torch.no_grad():
-        y = model(x)                # (1, 1, H, W)
-    return y.squeeze(0).squeeze(0).cpu().numpy()
+        y = model(x)                                                          # (1, 1, H, W)
+    depth = y.squeeze(0).squeeze(0).cpu().numpy().astype(np.float32)
+    depth[invalid] = np.nan
+    return depth
 
 
 # ----------------------------------------------------------------------------

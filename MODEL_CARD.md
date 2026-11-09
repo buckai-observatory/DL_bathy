@@ -67,6 +67,11 @@ run that produced the released weights.
 
 - Encoder backbone: `tu-convnext_large`
 - Input channels: 12 (Sentinel-2 bands B01–B12)
+- Input normalisation: `log(band / 10000 + 1e-6)` of the L2A digital numbers
+  (`Logcube: true`, `band_normalization: 10000`, `Epsilon: 1e-6`; each
+  checkpoint's `metadata.json` records `scaling_method: Log_band`), with
+  invalid values set to 0. `inference.predict_depth` applies this to raw
+  bands by default.
 - Output: single-channel regression, no activation (raw depth in metres)
 - Depth range: trained on 0–20 m. Each checkpoint's `metadata.json` records
   `depth_type: "deep"` because it was trained before issue #11 was fixed,

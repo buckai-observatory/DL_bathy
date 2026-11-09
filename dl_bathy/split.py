@@ -45,6 +45,7 @@ from rasterio.warp import transform as transform_coords
 from scipy.interpolate import griddata
 from skimage.transform import resize
 
+from .bands import normalize_reflectance
 from .patch_io import save_patches_from_metadata
 
 # =============================================================================
@@ -690,10 +691,7 @@ def run(cfg):
             resampled_lidar += tide_grid
 
             # --- Normalise Sentinel-2 reflectance ---
-            if Logcube:
-                cube = np.log(cube / cfg["band_normalization"] + cfg["Epsilon"])
-            else:
-                cube = cube / cfg["band_normalization"]
+            cube = normalize_reflectance(cube, Logcube, cfg["band_normalization"], cfg["Epsilon"])
 
             # --- Clip to smallest valid overlapping extent ---
             combined_valid = (~np.isnan(cube).any(axis=0)) & (~np.isnan(resampled_lidar)) & valid_pixel_mask
