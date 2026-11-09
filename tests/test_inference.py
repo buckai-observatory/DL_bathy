@@ -221,3 +221,34 @@ def test_load_model_rejects_mismatched_checkpoint(fake_hub):
     fake_hub({"other.weight": torch.zeros(1)})
     with pytest.raises(RuntimeError):
         inference.load_model(device="cpu")
+
+
+# ---------------------------------------------------------------------------
+# predict_depth on scenes of any size (issue #31)
+# ---------------------------------------------------------------------------
+
+def test_predict_depth_real_model_on_size_not_divisible_by_16():
+    # smp's DeepLabV3+ rejects inputs whose sides are not multiples of 16;
+    # fetched scenes almost never are.
+    model = inference.build_model("resnet50")
+    bands = np.random.default_rng(0).uniform(0, 3000, (12, 70, 90))
+    out = inference.predict_depth(model, bands)
+    assert out.shape == (70, 90) and np.isfinite(out).all()
+
+
+def test_tiled_prediction_matches_one_pass_for_pointwise_model():
+    # A 1x1-conv model gives the same answer per pixel however the scene is
+    # tiled, so tiling and blending must reproduce the one-pass result.
+    model = _tiny_model()
+    bands = np.random.default_rng(1).uniform(0, 3000, (12, 300, 230))
+    tiled = inference.predict_depth(model, bands, tile_size=96, overlap=32)
+    whole = inference.predict_depth(model, bands, tile_size=304, overlap=0)
+    np.testing.assert_allclose(tiled, whole, rtol=1e-5, atol=1e-6)
+
+
+def test_tiles_cover_the_scene_and_rejects_bad_tile_size():
+    assert inference._tile_starts(100, 512, 448) == [0]
+    starts = inference._tile_starts(1000, 512, 448)
+    assert starts[0] == 0 and starts[-1] == 1000 - 512
+    with pytest.raises(ValueError, match="multiple of 16"):
+        inference.predict_depth(_tiny_model(), np.ones((12, 32, 32)), tile_size=100)

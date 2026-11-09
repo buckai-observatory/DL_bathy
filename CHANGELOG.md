@@ -58,6 +58,12 @@ the next tag is cut.
   `sdb split` (shared `dl_bathy.bands.normalize_reflectance`), sets invalid
   values to 0 as in training, and returns NaN for those pixels. Pass
   `normalize=False` for bands that are already normalised.
+- **Issue #31**: `predict_depth` ran the whole scene in one forward pass, which
+  failed for any height or width that is not a multiple of 16 (DeepLabV3+'s
+  output stride) and needs far more memory than a laptop or Colab CPU has
+  for a fetched AOI. It now reflect-pads to a multiple of 16 and runs on
+  overlapping tiles (`tile_size`, default the training patch size of 512;
+  `overlap`, default 64) blended at the seams.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
