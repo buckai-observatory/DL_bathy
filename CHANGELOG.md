@@ -64,6 +64,11 @@ the next tag is cut.
   for a fetched AOI. It now reflect-pads to a multiple of 16 and runs on
   overlapping tiles (`tile_size`, default the training patch size of 512;
   `overlap`, default 64) blended at the seams.
+- **Issue #32**: the demo notebook's install cell asked pip for `DL_bathy`, which
+  is not on PyPI, so it installed nothing; it now installs
+  `dl-bathy[inference,fetch]` from GitHub. Its maps used a 0 to 25 m colour
+  scale for depths that are negative, and its metrics now cover only the
+  0-20 m range the released weights were trained on.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
