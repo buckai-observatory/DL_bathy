@@ -252,3 +252,51 @@ def test_tiles_cover_the_scene_and_rejects_bad_tile_size():
     assert starts[0] == 0 and starts[-1] == 1000 - 512
     with pytest.raises(ValueError, match="multiple of 16"):
         inference.predict_depth(_tiny_model(), np.ones((12, 32, 32)), tile_size=100)
+
+
+# ---------------------------------------------------------------------------
+# predict_from_geoai_datacubes: non-water pixels (SCL) are masked
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def fake_fetch(monkeypatch, tmp_path):
+    """Stand-in for geoai_datacubes.fetch.fetch_sentinel_data that writes one
+    13-band scene (B01-B12 + SCL) the way geoai-datacubes lays it out."""
+    import sys, types
+    import rasterio
+    from rasterio.transform import from_origin
+
+    def fetch_sentinel_data(mission, bands, time_range, roi, resolution, save_folder, max_cloud_coverage, provider):
+        scl = np.full((20, 24), 6.0)
+        scl[:5, :] = 4          # vegetation (land)
+        scl[10:12, 3:7] = 9     # cloud
+        data = np.concatenate([np.full((12, 20, 24), 800.0), scl[None]]).astype("float32")
+        folder = tmp_path / save_folder / "Sentinel-2_2020-08-19_S2A_test"
+        folder.mkdir(parents=True)
+        with rasterio.open(folder / "Sentinel-2_full_size.tiff", "w", driver="GTiff", width=24, height=20,
+                           count=13, dtype="float32", crs="EPSG:32755",
+                           transform=from_origin(300000, 8400000, 10, 10)) as dst:
+            dst.write(data)
+
+    fetch_mod = types.ModuleType("geoai_datacubes.fetch")
+    fetch_mod.fetch_sentinel_data = fetch_sentinel_data
+    pkg = types.ModuleType("geoai_datacubes")
+    pkg.fetch = fetch_mod
+    monkeypatch.setitem(sys.modules, "geoai_datacubes", pkg)
+    monkeypatch.setitem(sys.modules, "geoai_datacubes.fetch", fetch_mod)
+    monkeypatch.chdir(tmp_path)
+
+
+def test_predict_from_geoai_datacubes_masks_non_water(fake_fetch):
+    depths, meta = inference.predict_from_geoai_datacubes([0, 0, 1, 1], ("2020-06-01", "2020-09-30"),
+                                                          model=_tiny_model(), save_folder="s2")
+    assert depths.shape == (20, 24)
+    assert np.isnan(depths[:5]).all() and np.isnan(depths[10:12, 3:7]).all()
+    water = np.ones((20, 24), bool); water[:5] = False; water[10:12, 3:7] = False
+    assert np.isfinite(depths[water]).all()
+
+
+def test_predict_from_geoai_datacubes_water_only_false_keeps_all(fake_fetch):
+    depths, _ = inference.predict_from_geoai_datacubes([0, 0, 1, 1], ("2020-06-01", "2020-09-30"),
+                                                       model=_tiny_model(), save_folder="s2", water_only=False)
+    assert np.isfinite(depths).all()
