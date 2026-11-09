@@ -24,6 +24,7 @@ Output directory structure (inside ``output_dir``):
 """
 
 import glob
+import json
 import os
 import random
 import re
@@ -44,6 +45,7 @@ from rasterio.warp import transform as transform_coords
 from scipy.interpolate import griddata
 from skimage.transform import resize
 
+from .bands import normalize_reflectance
 from .patch_io import save_patches_from_metadata
 
 # =============================================================================
@@ -138,6 +140,51 @@ def extract_acquisition_time(filename, sentinel2_level):
     if m:
         return m.group(1)
     raise ValueError(f"No valid acquisition time found in filename: {filename}")
+
+
+def scene_acquisition_datetime(sentinel_file, sentinel2_level):
+    """
+    Acquisition time of a scene in UTC (naive datetime), for tide correction.
+
+    Scenes fetched by geoai-datacubes are named ``Sentinel-2_full_size.tiff``
+    and carry their exact acquisition time in the ``userdata.json`` written
+    next to them (``"acquisitionDate": "2020-06-15T00:32:48.909000Z"``), so
+    that is read first. Otherwise the time is parsed from the file name
+    (see :func:`extract_acquisition_time`) and, failing that, a
+    ``YYYY-MM-DD`` date from the parent folder name. A date without a time
+    is taken as midnight UTC, with a warning, since tides can change by
+    more than a metre within a few hours.
+    """
+    sidecar = os.path.join(os.path.dirname(sentinel_file), "userdata.json")
+    if os.path.exists(sidecar):
+        with open(sidecar) as f:
+            stamp = json.load(f).get("acquisitionDate")
+        if stamp:
+            ts = pd.Timestamp(stamp)
+            ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+            return ts.tz_localize(None).to_pydatetime()
+
+    try:
+        text = extract_acquisition_time(sentinel_file, sentinel2_level)
+    except ValueError:
+        m = re.search(r'(\d{4}-\d{2}-\d{2})', os.path.basename(os.path.dirname(sentinel_file)))
+        if not m:
+            raise ValueError(
+                f"Cannot find the acquisition time of {sentinel_file!r}: no "
+                "userdata.json next to it, and no date in its file or folder "
+                "name.") from None
+        text = m.group(1)
+
+    for fmt in ('%Y%m%dT%H%M%S', '%Y-%m-%d_%H-%M-%S', '%Y%m%d', '%Y-%m-%d'):
+        try:
+            acq_dt = datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+        if fmt in ('%Y%m%d', '%Y-%m-%d'):
+            print(f"[WARN] {sentinel_file}: only the acquisition date is known; "
+                  "tides are computed for 00:00 UTC.")
+        return acq_dt
+    raise ValueError(f"Unrecognised acquisition time {text!r} for {sentinel_file!r}")
 
 
 def get_bbox_from_transform(transform, rows, cols):
@@ -638,23 +685,13 @@ def run(cfg):
             resampled_lidar[resampled_lidar < cfg["deepestDepth2Train"]] = np.nan
 
             # --- Tidal correction ---
-            acquisition_time_str = extract_acquisition_time(sentinel_file, cfg["Sentinel2_level"])
-            if cfg["Sentinel2_level"] == 'L1C':
-                acq_dt = datetime.strptime(acquisition_time_str, '%Y%m%dT%H%M%S')
-            else:
-                try:
-                    acq_dt = datetime.strptime(acquisition_time_str, '%Y-%m-%d_%H-%M-%S')
-                except ValueError:
-                    acq_dt = datetime.strptime(acquisition_time_str, '%Y%m%d')
+            acq_dt = scene_acquisition_datetime(sentinel_file, cfg["Sentinel2_level"])
 
             tide_grid = get_tide_grid_for_scene(sentinel_file, acq_dt, resampled_lidar.shape, cfg)
             resampled_lidar += tide_grid
 
             # --- Normalise Sentinel-2 reflectance ---
-            if Logcube:
-                cube = np.log(cube / cfg["band_normalization"] + cfg["Epsilon"])
-            else:
-                cube = cube / cfg["band_normalization"]
+            cube = normalize_reflectance(cube, Logcube, cfg["band_normalization"], cfg["Epsilon"])
 
             # --- Clip to smallest valid overlapping extent ---
             combined_valid = (~np.isnan(cube).any(axis=0)) & (~np.isnan(resampled_lidar)) & valid_pixel_mask

@@ -90,7 +90,7 @@ def test_build_model_rejects_unknown_encoder():
 def test_predict_depth_numpy_and_torch_inputs_agree():
     model = _tiny_model()
     rng = np.random.default_rng(0)
-    bands = rng.random((12, 8, 10)).astype(np.float64)   # cast to float32 inside
+    bands = rng.uniform(0, 3000, (12, 8, 10))            # raw L2A digital numbers
 
     out_np = inference.predict_depth(model, bands)
     out_t = inference.predict_depth(model, torch.from_numpy(bands))
@@ -100,9 +100,42 @@ def test_predict_depth_numpy_and_torch_inputs_agree():
     assert out_np.dtype == np.float32
     np.testing.assert_allclose(out_np, out_t)
 
+    # Issue #30: the model must see log(band/10000 + 1e-6), as in training
+    normalised = np.log(bands / 10000 + 1e-6).astype(np.float32)
     with torch.no_grad():
-        expected = model(torch.from_numpy(bands.astype(np.float32))[None])[0, 0].numpy()
-    np.testing.assert_allclose(out_np, expected, rtol=1e-6)
+        expected = model(torch.from_numpy(normalised)[None])[0, 0].numpy()
+    np.testing.assert_allclose(out_np, expected, rtol=1e-5)
+    np.testing.assert_allclose(inference.predict_depth(model, normalised, normalize=False), expected, rtol=1e-5)
+
+
+def test_predict_depth_input_matches_sdb_split_patches(scene):
+    # A raw scene window, normalised by predict_depth, must equal the bands
+    # sdb split wrote for the same patch -- the values the model trained on.
+    import rasterio
+    from rasterio.windows import from_bounds
+    from dl_bathy.bands import normalize_reflectance
+    from dl_bathy.cli import main
+    from dl_bathy.patch_io import read_patch_tif
+    main(["split", "--config", str(scene)])
+    patch = next((scene.parent / "Data" / "train").glob("*.tif"))
+    X, _, _, _ = read_patch_tif(str(patch))
+    with rasterio.open(patch) as p:
+        bounds = p.bounds
+    with rasterio.open(next((scene.parent / "s2").glob("*.tif"))) as src:
+        raw = src.read(list(range(1, 13)), window=from_bounds(*bounds, transform=src.transform)).astype(float)
+    assert raw.shape == X.shape
+    np.testing.assert_allclose(normalize_reflectance(raw), X, rtol=1e-5, atol=1e-5)
+
+    model = _tiny_model()
+    np.testing.assert_allclose(inference.predict_depth(model, raw),
+                               inference.predict_depth(model, X, normalize=False), rtol=1e-4, atol=1e-5)
+
+
+def test_predict_depth_returns_nan_where_input_is_invalid():
+    bands = np.full((12, 4, 4), 1000.0)
+    bands[3, 1, 2] = np.nan
+    out = inference.predict_depth(_tiny_model(), bands)
+    assert np.isnan(out[1, 2]) and np.isfinite(np.delete(out.ravel(), 1 * 4 + 2)).all()
 
 
 @pytest.mark.parametrize("shape", [(11, 8, 8), (13, 8, 8), (12, 8), (1, 12, 8, 8)])
@@ -188,3 +221,34 @@ def test_load_model_rejects_mismatched_checkpoint(fake_hub):
     fake_hub({"other.weight": torch.zeros(1)})
     with pytest.raises(RuntimeError):
         inference.load_model(device="cpu")
+
+
+# ---------------------------------------------------------------------------
+# predict_depth on scenes of any size (issue #31)
+# ---------------------------------------------------------------------------
+
+def test_predict_depth_real_model_on_size_not_divisible_by_16():
+    # smp's DeepLabV3+ rejects inputs whose sides are not multiples of 16;
+    # fetched scenes almost never are.
+    model = inference.build_model("resnet50")
+    bands = np.random.default_rng(0).uniform(0, 3000, (12, 70, 90))
+    out = inference.predict_depth(model, bands)
+    assert out.shape == (70, 90) and np.isfinite(out).all()
+
+
+def test_tiled_prediction_matches_one_pass_for_pointwise_model():
+    # A 1x1-conv model gives the same answer per pixel however the scene is
+    # tiled, so tiling and blending must reproduce the one-pass result.
+    model = _tiny_model()
+    bands = np.random.default_rng(1).uniform(0, 3000, (12, 300, 230))
+    tiled = inference.predict_depth(model, bands, tile_size=96, overlap=32)
+    whole = inference.predict_depth(model, bands, tile_size=304, overlap=0)
+    np.testing.assert_allclose(tiled, whole, rtol=1e-5, atol=1e-6)
+
+
+def test_tiles_cover_the_scene_and_rejects_bad_tile_size():
+    assert inference._tile_starts(100, 512, 448) == [0]
+    starts = inference._tile_starts(1000, 512, 448)
+    assert starts[0] == 0 and starts[-1] == 1000 - 512
+    with pytest.raises(ValueError, match="multiple of 16"):
+        inference.predict_depth(_tiny_model(), np.ones((12, 32, 32)), tile_size=100)

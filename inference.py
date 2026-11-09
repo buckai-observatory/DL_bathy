@@ -32,6 +32,9 @@ import segmentation_models_pytorch as smp
 import torch
 from torch import nn
 
+from dl_bathy.bands import normalize_reflectance
+from dl_bathy.config import SPLIT_DEFAULTS
+
 
 # ----------------------------------------------------------------------------
 # Configuration
@@ -54,6 +57,9 @@ HF_DEFAULT_FILENAME = "deeplabv3_bathy_final.pth"
 #: Encoder backbone used by the reference checkpoint. Same string accepted by
 #: ``step2_train_test.py``'s ``Model_mode``. Passed straight through to smp.
 DEFAULT_ENCODER = "tu-convnext_large"
+
+# DeepLabV3+ encoder output stride: input height and width must be multiples of it.
+_OUTPUT_STRIDE = 16
 
 #: Explicit Sentinel-2 L2A band list to fetch via geoai-datacubes. Must be
 #: passed explicitly -- geoai-datacubes' bands=None default for Sentinel-2
@@ -119,7 +125,7 @@ def build_model(encoder_name: str = DEFAULT_ENCODER,
         in_channels           = 12,
         classes               = 1,
         activation            = None,
-        encoder_output_stride = 16,
+        encoder_output_stride = _OUTPUT_STRIDE,
     )
     model.eval()
     if device is not None:
@@ -210,47 +216,120 @@ def predict_depth(
     model:  nn.Module,
     s2_bands: Union[np.ndarray, torch.Tensor],
     device: Union[str, torch.device, None] = None,
+    normalize: bool = True,
+    log_scale: bool = SPLIT_DEFAULTS["Logcube"],
+    band_normalization: float = SPLIT_DEFAULTS["band_normalization"],
+    epsilon: float = SPLIT_DEFAULTS["Epsilon"],
+    tile_size: int = SPLIT_DEFAULTS["patch_size"],
+    overlap: int = 64,
 ) -> np.ndarray:
     """Predict per-pixel water depth from a Sentinel-2 L2A tile.
+
+    Scenes of any size work: the model runs on overlapping tiles of
+    ``tile_size`` pixels (the training patch size by default), which keeps
+    memory bounded and lets the scene's height and width be any value.
+
+    The bands are normalised exactly as ``sdb split`` normalises training
+    patches (:func:`dl_bathy.bands.normalize_reflectance`; by default
+    ``log(band / 10000 + 1e-6)``), and invalid values are set to 0 as in
+    training.
 
     Parameters
     ----------
     model : torch.nn.Module
         A model returned by :func:`load_model`.
     s2_bands : np.ndarray | torch.Tensor
-        Shape ``(12, H, W)`` -- Sentinel-2 L2A bands 1--12 (B01--B12) in the
-        same order as ``step1_splitting.py`` writes them. dtype float32.
-        NaN pixels (clouds / no-data) are allowed; the model will emit
-        predictions for them too, so mask post-hoc with the SCL band if
-        needed.
+        Shape ``(12, H, W)`` -- Sentinel-2 L2A bands 1--12 (B01--B12), as
+        raw digital numbers (reflectance x 10000), in the band order
+        ``sdb split`` uses. NaN pixels (clouds / no-data) are allowed.
     device : str | torch.device | None
         Where to run the forward pass. Defaults to the model's device.
+    normalize : bool
+        Set to False if ``s2_bands`` is already normalised, for example the
+        first 12 bands of a patch written by ``sdb split``.
+    log_scale, band_normalization, epsilon : bool, float, float
+        The ``Logcube``, ``band_normalization`` and ``Epsilon`` settings the
+        model was trained with. The defaults match ``sdb split``'s defaults
+        and the released weights.
+    tile_size : int
+        Tile side in pixels, a multiple of 16. Lower it if memory is short.
+    overlap : int
+        Overlap between neighbouring tiles in pixels; predictions are
+        blended across it.
 
     Returns
     -------
     np.ndarray
-        Shape ``(H, W)`` -- predicted depth in metres (negative = deeper,
-        0 = sea level), matching the sign convention of the LiDAR targets
-        this model was trained on (see ``dl_bathy/split.py``).
-        Same dtype as ``model``'s output (typically float32).
+        Shape ``(H, W)``, float32 -- predicted depth in metres (negative =
+        deeper, 0 = sea level), matching the sign convention of the LiDAR
+        targets this model was trained on (see ``dl_bathy/split.py``). NaN
+        where any input band is NaN or cannot be normalised.
     """
     if device is None:
         device = next(model.parameters()).device
 
-    if isinstance(s2_bands, np.ndarray):
-        x = torch.from_numpy(s2_bands.astype(np.float32))
-    else:
-        x = s2_bands.float()
+    if isinstance(s2_bands, torch.Tensor):
+        s2_bands = s2_bands.detach().cpu().numpy()
+    bands = np.asarray(s2_bands, dtype=np.float64)
 
-    if x.ndim != 3 or x.shape[0] != 12:
+    if bands.ndim != 3 or bands.shape[0] != 12:
         raise ValueError(
-            f"s2_bands must have shape (12, H, W); got {tuple(x.shape)}."
+            f"s2_bands must have shape (12, H, W); got {tuple(bands.shape)}."
         )
 
-    x = x.unsqueeze(0).to(device)   # (1, 12, H, W)
+    if normalize:
+        bands = normalize_reflectance(bands, log_scale, band_normalization, epsilon)
+    invalid = ~np.isfinite(bands).all(axis=0)
+    bands = np.nan_to_num(bands, nan=0.0, posinf=0.0, neginf=0.0)
+
+    depth = _predict_tiled(model, bands.astype(np.float32), device, tile_size, overlap)
+    depth[invalid] = np.nan
+    return depth
+
+
+def _tile_starts(n: int, tile: int, stride: int) -> list:
+    """Start offsets of tiles of length `tile` covering 0..n, the last one flush with n."""
+    if n <= tile:
+        return [0]
+    starts = list(range(0, n - tile + 1, stride))
+    if starts[-1] != n - tile:
+        starts.append(n - tile)
+    return starts
+
+
+def _predict_tiled(model, bands, device, tile_size, overlap):
+    """Run `model` on (12, H, W) `bands` in overlapping tiles and blend them.
+
+    DeepLabV3+ needs height and width divisible by its output stride (16), so
+    the scene is reflect-padded to a multiple of 16 and cropped back.
+    Overlapping tiles are blended with weights that ramp down linearly over
+    `overlap` pixels at each tile edge, which hides tile seams.
+    """
+    if tile_size % _OUTPUT_STRIDE:
+        raise ValueError(f"tile_size must be a multiple of {_OUTPUT_STRIDE}; got {tile_size}.")
+    _, H, W = bands.shape
+    Hp, Wp = (-(-n // _OUTPUT_STRIDE) * _OUTPUT_STRIDE for n in (H, W))
+    pad = ((0, 0), (0, Hp - H), (0, Wp - W))
+    bands = np.pad(bands, pad, mode="reflect" if min(H, W) > 1 else "edge")
+
+    th, tw = min(tile_size, Hp), min(tile_size, Wp)
+    ramp = max(min(overlap, th // 2, tw // 2), 0)
+
+    def weights(n):
+        i = np.arange(n, dtype=np.float32)
+        return np.minimum(1.0, np.minimum(i + 1, n - i) / (ramp + 1))
+
+    w = np.outer(weights(th), weights(tw))
+    acc = np.zeros((Hp, Wp), np.float32)
+    wsum = np.zeros((Hp, Wp), np.float32)
     with torch.no_grad():
-        y = model(x)                # (1, 1, H, W)
-    return y.squeeze(0).squeeze(0).cpu().numpy()
+        for r in _tile_starts(Hp, th, max(th - overlap, 1)):
+            for c in _tile_starts(Wp, tw, max(tw - overlap, 1)):
+                x = torch.from_numpy(np.ascontiguousarray(bands[:, r:r + th, c:c + tw]))
+                y = model(x.unsqueeze(0).to(device))[0, 0].cpu().numpy()   # (th, tw)
+                acc[r:r + th, c:c + tw] += y * w
+                wsum[r:r + th, c:c + tw] += w
+    return (acc / wsum)[:H, :W]
 
 
 # ----------------------------------------------------------------------------
