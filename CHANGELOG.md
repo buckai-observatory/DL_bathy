@@ -47,6 +47,11 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #29**: with the default `DATA_SOURCE: geoai_datacubes`, every scene
+  failed acquisition-time parsing (`Sentinel-2_full_size.tiff` has no date in
+  its name), so `sdb split` wrote no patches. The time is now read from the
+  `userdata.json` that geoai-datacubes writes next to each scene, so tides are
+  also computed at the actual acquisition time rather than midnight.
 - **Issue #30**: `inference.predict_depth` (and so `predict_from_geoai_datacubes`)
   fed raw reflectance to the model, which was trained on
   `log(band/10000 + 1e-6)`. It now applies the same normalisation as
