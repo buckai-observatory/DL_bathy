@@ -47,18 +47,23 @@ the next tag is cut.
 
 ### Fixed
 
-- **Issue #31**: `predict_depth` ran the whole scene in one forward pass, which
-  failed for any height or width that is not a multiple of 16 (DeepLabV3+'s
-  output stride) and needs far more memory than a laptop or Colab CPU has
-  for a fetched AOI. It now reflect-pads to a multiple of 16 and runs on
-  overlapping tiles (`tile_size`, default the training patch size of 512;
-  `overlap`, default 64) blended at the seams.
+- **Issue #29**: with the default `DATA_SOURCE: geoai_datacubes`, every scene
+  failed acquisition-time parsing (`Sentinel-2_full_size.tiff` has no date in
+  its name), so `sdb split` wrote no patches. The time is now read from the
+  `userdata.json` that geoai-datacubes writes next to each scene, so tides are
+  also computed at the actual acquisition time rather than midnight.
 - **Issue #30**: `inference.predict_depth` (and so `predict_from_geoai_datacubes`)
   fed raw reflectance to the model, which was trained on
   `log(band/10000 + 1e-6)`. It now applies the same normalisation as
   `sdb split` (shared `dl_bathy.bands.normalize_reflectance`), sets invalid
   values to 0 as in training, and returns NaN for those pixels. Pass
   `normalize=False` for bands that are already normalised.
+- **Issue #31**: `predict_depth` ran the whole scene in one forward pass, which
+  failed for any height or width that is not a multiple of 16 (DeepLabV3+'s
+  output stride) and needs far more memory than a laptop or Colab CPU has
+  for a fetched AOI. It now reflect-pads to a multiple of 16 and runs on
+  overlapping tiles (`tile_size`, default the training patch size of 512;
+  `overlap`, default 64) blended at the seams.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
