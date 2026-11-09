@@ -47,6 +47,12 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #30**: `inference.predict_depth` (and so `predict_from_geoai_datacubes`)
+  fed raw reflectance to the model, which was trained on
+  `log(band/10000 + 1e-6)`. It now applies the same normalisation as
+  `sdb split` (shared `dl_bathy.bands.normalize_reflectance`), sets invalid
+  values to 0 as in training, and returns NaN for those pixels. Pass
+  `normalize=False` for bands that are already normalised.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
