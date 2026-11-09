@@ -47,6 +47,12 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #31**: `predict_depth` ran the whole scene in one forward pass, which
+  failed for any height or width that is not a multiple of 16 (DeepLabV3+'s
+  output stride) and needs far more memory than a laptop or Colab CPU has
+  for a fetched AOI. It now reflect-pads to a multiple of 16 and runs on
+  overlapping tiles (`tile_size`, default the training patch size of 512;
+  `overlap`, default 64) blended at the seams.
 - **Issue #30**: `inference.predict_depth` (and so `predict_from_geoai_datacubes`)
   fed raw reflectance to the model, which was trained on
   `log(band/10000 + 1e-6)`. It now applies the same normalisation as

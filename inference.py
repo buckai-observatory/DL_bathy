@@ -58,6 +58,9 @@ HF_DEFAULT_FILENAME = "deeplabv3_bathy_final.pth"
 #: ``step2_train_test.py``'s ``Model_mode``. Passed straight through to smp.
 DEFAULT_ENCODER = "tu-convnext_large"
 
+# DeepLabV3+ encoder output stride: input height and width must be multiples of it.
+_OUTPUT_STRIDE = 16
+
 #: Explicit Sentinel-2 L2A band list to fetch via geoai-datacubes. Must be
 #: passed explicitly -- geoai-datacubes' bands=None default for Sentinel-2
 #: only resolves to ["B04", "B08", "SCL", "AOT", "WVP"] (5 bands), not the
@@ -122,7 +125,7 @@ def build_model(encoder_name: str = DEFAULT_ENCODER,
         in_channels           = 12,
         classes               = 1,
         activation            = None,
-        encoder_output_stride = 16,
+        encoder_output_stride = _OUTPUT_STRIDE,
     )
     model.eval()
     if device is not None:
@@ -217,8 +220,14 @@ def predict_depth(
     log_scale: bool = SPLIT_DEFAULTS["Logcube"],
     band_normalization: float = SPLIT_DEFAULTS["band_normalization"],
     epsilon: float = SPLIT_DEFAULTS["Epsilon"],
+    tile_size: int = SPLIT_DEFAULTS["patch_size"],
+    overlap: int = 64,
 ) -> np.ndarray:
     """Predict per-pixel water depth from a Sentinel-2 L2A tile.
+
+    Scenes of any size work: the model runs on overlapping tiles of
+    ``tile_size`` pixels (the training patch size by default), which keeps
+    memory bounded and lets the scene's height and width be any value.
 
     The bands are normalised exactly as ``sdb split`` normalises training
     patches (:func:`dl_bathy.bands.normalize_reflectance`; by default
@@ -242,6 +251,11 @@ def predict_depth(
         The ``Logcube``, ``band_normalization`` and ``Epsilon`` settings the
         model was trained with. The defaults match ``sdb split``'s defaults
         and the released weights.
+    tile_size : int
+        Tile side in pixels, a multiple of 16. Lower it if memory is short.
+    overlap : int
+        Overlap between neighbouring tiles in pixels; predictions are
+        blended across it.
 
     Returns
     -------
@@ -268,12 +282,54 @@ def predict_depth(
     invalid = ~np.isfinite(bands).all(axis=0)
     bands = np.nan_to_num(bands, nan=0.0, posinf=0.0, neginf=0.0)
 
-    x = torch.from_numpy(bands.astype(np.float32)).unsqueeze(0).to(device)   # (1, 12, H, W)
-    with torch.no_grad():
-        y = model(x)                                                          # (1, 1, H, W)
-    depth = y.squeeze(0).squeeze(0).cpu().numpy().astype(np.float32)
+    depth = _predict_tiled(model, bands.astype(np.float32), device, tile_size, overlap)
     depth[invalid] = np.nan
     return depth
+
+
+def _tile_starts(n: int, tile: int, stride: int) -> list:
+    """Start offsets of tiles of length `tile` covering 0..n, the last one flush with n."""
+    if n <= tile:
+        return [0]
+    starts = list(range(0, n - tile + 1, stride))
+    if starts[-1] != n - tile:
+        starts.append(n - tile)
+    return starts
+
+
+def _predict_tiled(model, bands, device, tile_size, overlap):
+    """Run `model` on (12, H, W) `bands` in overlapping tiles and blend them.
+
+    DeepLabV3+ needs height and width divisible by its output stride (16), so
+    the scene is reflect-padded to a multiple of 16 and cropped back.
+    Overlapping tiles are blended with weights that ramp down linearly over
+    `overlap` pixels at each tile edge, which hides tile seams.
+    """
+    if tile_size % _OUTPUT_STRIDE:
+        raise ValueError(f"tile_size must be a multiple of {_OUTPUT_STRIDE}; got {tile_size}.")
+    _, H, W = bands.shape
+    Hp, Wp = (-(-n // _OUTPUT_STRIDE) * _OUTPUT_STRIDE for n in (H, W))
+    pad = ((0, 0), (0, Hp - H), (0, Wp - W))
+    bands = np.pad(bands, pad, mode="reflect" if min(H, W) > 1 else "edge")
+
+    th, tw = min(tile_size, Hp), min(tile_size, Wp)
+    ramp = max(min(overlap, th // 2, tw // 2), 0)
+
+    def weights(n):
+        i = np.arange(n, dtype=np.float32)
+        return np.minimum(1.0, np.minimum(i + 1, n - i) / (ramp + 1))
+
+    w = np.outer(weights(th), weights(tw))
+    acc = np.zeros((Hp, Wp), np.float32)
+    wsum = np.zeros((Hp, Wp), np.float32)
+    with torch.no_grad():
+        for r in _tile_starts(Hp, th, max(th - overlap, 1)):
+            for c in _tile_starts(Wp, tw, max(tw - overlap, 1)):
+                x = torch.from_numpy(np.ascontiguousarray(bands[:, r:r + th, c:c + tw]))
+                y = model(x.unsqueeze(0).to(device))[0, 0].cpu().numpy()   # (th, tw)
+                acc[r:r + th, c:c + tw] += y * w
+                wsum[r:r + th, c:c + tw] += w
+    return (acc / wsum)[:H, :W]
 
 
 # ----------------------------------------------------------------------------
