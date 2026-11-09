@@ -65,7 +65,7 @@ API_SECTIONS = [
     ("Configuration", "Settings for `sdb split` and `sdb train`.", "dl_bathy.config",
      ["load_config", "example_config"]),
     ("Patch preparation (`sdb split`)", "Scenes, masks, tide correction, patches and splits.", "dl_bathy.split",
-     ["run", "find_sentinel_files", "extract_acquisition_time", "get_bbox_from_transform",
+     ["run", "find_sentinel_files", "extract_acquisition_time", "scene_acquisition_datetime", "get_bbox_from_transform",
       "sample_tide_pytmd", "generate_tide_grid", "get_tide_grid_for_scene",
       "extract_patches_no_nans_gen", "assign_split", "balance_metadata_by_depth",
       "augment_folder_tifs"]),

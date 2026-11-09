@@ -47,6 +47,11 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #29**: with the default `DATA_SOURCE: geoai_datacubes`, every scene
+  failed acquisition-time parsing (`Sentinel-2_full_size.tiff` has no date in
+  its name), so `sdb split` wrote no patches. The time is now read from the
+  `userdata.json` that geoai-datacubes writes next to each scene, so tides are
+  also computed at the actual acquisition time rather than midnight.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,

@@ -89,6 +89,41 @@ def test_custom_tide_grid_is_added_to_depths(scene):
     assert valid.max() <= -1 + 1.5 + 1e-4 and valid.min() >= -25 + 1.5 - 1e-3
 
 
+def test_geoai_datacubes_scene_uses_acquisition_time_from_userdata(scene):
+    # geoai-datacubes writes <fetch_dir>/Sentinel-2_<date>_<id>/Sentinel-2_full_size.tiff
+    # plus userdata.json. The file name has no date, so the time must come
+    # from userdata.json; the custom tide grid is looked up by that time.
+    import json
+    import shutil
+    import yaml
+    from tests.conftest import write_tif, SIZE
+    src = next((scene.parent / "s2").glob("*.tif"))
+    folder = scene.parent / "s2" / "Sentinel-2_2023-05-01_S2A_55LCE_20230501_0_L2A"
+    folder.mkdir()
+    shutil.move(src, folder / "Sentinel-2_full_size.tiff")
+    (folder / "userdata.json").write_text(json.dumps({"acquisitionDate": "2023-05-01T00:32:48.909000Z"}))
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["split"].update(TIDE_SOURCE="custom", CUSTOM_TIDE_DIR="tide", apply_augmentation=False)
+    scene.write_text(yaml.safe_dump(cfg))
+    write_tif(scene.parent / "tide" / "tide_20230501_003248.tif", np.full((SIZE, SIZE), 1.5), "float32")
+
+    assert main(["split", "--config", str(scene)]) == 0
+    files = list((scene.parent / "Data" / "train").glob("*.tif"))
+    assert files
+    _, y, mask, _ = read_patch_tif(files[0])
+    assert y[mask > 0].max() <= -1 + 1.5 + 1e-4
+
+
+def test_scene_acquisition_datetime_fallbacks(tmp_path):
+    from datetime import datetime
+    from dl_bathy.split import scene_acquisition_datetime
+    assert scene_acquisition_datetime(str(tmp_path / "S2_2023-05-01_02-30-00_x.tif"), "L2A") == datetime(2023, 5, 1, 2, 30)
+    folder = tmp_path / "Sentinel-2_2020-06-15_S2A_55LCE_20200615_0_L2A"
+    assert scene_acquisition_datetime(str(folder / "Sentinel-2_full_size.tiff"), "L2A") == datetime(2020, 6, 15)
+    with pytest.raises(ValueError, match="acquisition time"):
+        scene_acquisition_datetime(str(tmp_path / "scene" / "image.tif"), "L2A")
+
+
 def test_scenes_without_scl_band_are_rejected(tmp_path):
     from dl_bathy.split import _scl_water_mask_from_scene
     from tests.conftest import write_tif
