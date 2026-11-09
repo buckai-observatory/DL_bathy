@@ -301,7 +301,7 @@ Key settings (`train` section):
 | `num_epochs` | `1000` | Max epochs (early stopping will terminate sooner) |
 | `batch_size` | `16` | Batch size per GPU |
 | `lr` | `1e-4` | Initial learning rate |
-| `earlystop_patience` | `10` | Epochs without improvement before stopping |
+| `earlystop_patience` | `10` | Epochs without improvement before stopping. With no validation patches (e.g. the default `val_ratio: 0.0`), early stopping is off, the learning-rate schedule follows the training metric, and the final model is saved as `best_model.pth` |
 | `depth_type` | `"shallow"` | `"shallow"` (train on depths shallower than `depth_threshold`, i.e. 0–20 m by default, as in the paper) or `"deep"` (deeper than it) |
 | `depth_threshold` | `20` | Depth boundary (m) for deep/shallow classification |
 | `test_depth_range` | `[-20, -0.01]` | `[deepest, shallowest]` depth (m) scored in the test metrics; test pixels outside it are excluded (on top of the `depth_type` filter — must overlap the range `depth_type`/`depth_threshold` keeps, or nothing gets scored). The range is written to the `Eval_depth_min_m` / `Eval_depth_max_m` columns of the metrics CSVs |

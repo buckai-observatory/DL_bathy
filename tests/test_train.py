@@ -114,3 +114,21 @@ def test_sdb_train_test_time_depth_type_matches_training_time_filter(scene):
     full = pd.read_csv(preds / "prediction_metrics.csv")
     assert len(full) > 0
     assert (full["GT_max_depth_m"] <= -10).all()  # 'deep' keeps only |y| >= threshold
+
+
+def test_sdb_train_without_validation_patches_runs_all_epochs_and_saves_best(scene):
+    # Regression test for issue #33: with an empty validation folder every
+    # val metric is NaN, so best_model.pth was never saved, early stopping
+    # fired after earlystop_patience epochs, and test inference then failed.
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["train"].update(num_epochs=3, earlystop_patience=1)
+    scene.write_text(yaml.safe_dump(cfg))
+    main(["split", "--config", str(scene)])
+    for f in (scene.parent / "Data" / "valid").glob("*.tif"):
+        f.unlink()
+    assert main(["train", "--config", str(scene)]) == 0
+    out = scene.parent / "Model_output"
+    meta = json.loads((out / "metadata.json").read_text())
+    assert meta["num_epochs_trained"] == 3
+    assert (out / "best_model.pth").exists()
+    assert len(list((out / "predictions").glob("*_pred.tif"))) == len(list((scene.parent / "Data" / "test").glob("*.tif")))
