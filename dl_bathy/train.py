@@ -475,6 +475,11 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
     val_files   = filter_valid_patches(val_files_all,   params["min_valid_ratio_for_val"]) if params["min_valid_ratio_for_val"] else val_files_all
     test_files  = test_files_all
 
+    if not val_files:
+        print(f"[WARN] No validation patches in: {val_dir}. The learning-rate schedule "
+              "follows the training metric, early stopping is off, and the final model "
+              "is saved as best_model.pth.")
+
     # -------------------------------------------------------------------------
     # 2. Per-band MinMax scaling initialisation (if requested)
     # -------------------------------------------------------------------------
@@ -659,6 +664,20 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             f_metrics.flush()
 
             # --- Scheduler step & early stopping ---
+            if not val_files:
+                # Without validation patches every val metric is NaN: follow the
+                # training metric for the LR schedule and skip early stopping.
+                train_monitor_map = {
+                    "swf": (train_swf_rmse, "train SWF RMSE"),
+                    "rpe": (train_rpe_avg,  "train RPE %"),
+                    "mae": (train_mae,      "train MAE"),
+                }
+                train_metric, _ = train_monitor_map.get(
+                    params.get("loss_type", "sse").lower(), (train_rmse, "train RMSE")
+                )
+                scheduler.step(train_metric)
+                continue
+
             monitor_map = {
                 "swf": (val_swf_rmse, "SWF RMSE"),
                 "rpe": (val_rpe_avg,  "RPE %"),
@@ -691,6 +710,8 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
     final_model_path = os.path.join(LiDAR_Model, "deeplabv3_bathy_final.pth")
     state = model.module.state_dict() if gpu_count > 1 else model.state_dict()
     torch.save(state, final_model_path)
+    if not val_files:
+        torch.save(state, os.path.join(LiDAR_Model, "best_model.pth"))
 
     meta = {
         "Model_mode":                    params["Model_mode"],
