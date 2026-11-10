@@ -344,6 +344,7 @@ def predict_from_geoai_datacubes(
     resolution: int = 10,
     save_folder: str = "s2_fetched",
     device: Union[str, torch.device, None] = None,
+    water_only: bool = True,
 ) -> Tuple[np.ndarray, dict]:
     """Fetch Sentinel-2 L2A via geoai-datacubes and predict bathymetry.
 
@@ -370,12 +371,18 @@ def predict_from_geoai_datacubes(
         only; not uploaded anywhere.
     device : str | torch.device | None
         Compute device; defaults to CUDA > MPS > CPU.
+    water_only : bool
+        Set depths to NaN wherever the scene's Scene Classification Layer
+        (band 13) is not water (class 6), i.e. land, cloud, cloud shadow
+        and no-data. The model was trained on water pixels only.
 
     Returns
     -------
     (depths, metadata) : (np.ndarray, dict)
         ``depths`` is a ``(H, W)`` float32 array of predicted depths in
-        metres. ``metadata`` carries scene provenance from geoai-datacubes:
+        metres (negative = below sea level). The model was trained on
+        0-20 m, so values in optically deep water (open ocean) are not
+        meaningful and tend towards 0. ``metadata`` carries scene provenance from geoai-datacubes:
         ``scene_id``, ``date``, ``crs``, ``transform`` (rasterio.Affine),
         and the input ``aoi`` echoed back.
     """
@@ -428,6 +435,8 @@ def predict_from_geoai_datacubes(
     s2_bands = arr[:12]
 
     depths = predict_depth(model, s2_bands, device=device)
+    if water_only and arr.shape[0] >= 13:
+        depths[arr[12] != 6] = np.nan   # SCL class 6 = water
 
     scene_id = os.path.basename(os.path.dirname(scene_path))
     return depths, {

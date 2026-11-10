@@ -47,6 +47,10 @@ the next tag is cut.
 
 ### Fixed
 
+- `predict_from_geoai_datacubes` returns NaN for pixels that the scene's
+  Scene Classification Layer does not mark as water (new `water_only`
+  option, on by default). The demo notebook now says that the model covers
+  0-20 m and that deep open water shows up as about 0 m.
 - **Issue #29**: with the default `DATA_SOURCE: geoai_datacubes`, every scene
   failed acquisition-time parsing (`Sentinel-2_full_size.tiff` has no date in
   its name), so `sdb split` wrote no patches. The time is now read from the
