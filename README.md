@@ -391,6 +391,8 @@ Released under the [MIT License](LICENSE).
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report bugs, request
 features, and submit pull requests. Participation is governed by our
 [Code of Conduct](CODE_OF_CONDUCT.md).
+Each author's role in the software is listed in
+[CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ## Citing this software
 
