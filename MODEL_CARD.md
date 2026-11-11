@@ -61,9 +61,10 @@ release being published).
 
 ## Training configuration
 
-TODO once the release checkpoint is trained. Should mirror the
-`train` section of the config file (`sdb init-config`) for the training
-run that produced the released weights.
+Values below are read from each released checkpoint's `metadata.json`
+on the Hugging Face Hub. All four deep-learning checkpoints share the same
+settings apart from the encoder. Items marked *(Amy to confirm)* match the
+current `sdb` defaults but are not recorded in `metadata.json`.
 
 - Encoder backbone: `tu-convnext_large`
 - Input channels: 12 (Sentinel-2 bands B01–B12)
@@ -77,11 +78,27 @@ run that produced the released weights.
   `depth_type: "deep"` because it was trained before issue #11 was fixed,
   when `"deep"` kept depths shallower than `depth_threshold`. With the
   current code, the same setting is `depth_type: "shallow"` (the default).
-- Loss: TODO — SSE (RMSE), MAE, RPE, SWF (depth-weighted RMSE), or Huber (which one, and its hyperparameters)
-- Optimiser: AdamW, weight-decay 1e-4, initial LR TODO
-- Scheduler: ReduceLROnPlateau (factor 0.5, patience TODO)
-- Batch size / epochs / early-stopping: TODO
-- Hardware: TODO (single GPU, multi-GPU DataParallel, etc.)
+- Loss: SWF (smooth weight function, depth-weighted squared error), per-pixel
+  weight `1 + beta * exp(-|z| / Z0)` with `SWF_beta = 5.0`, `SWF_Z0 = 10.0`
+  (`loss_type: swf`)
+- Optimiser: AdamW, weight-decay 1e-4, initial LR 1e-4
+- Gradient clipping: max norm 5.0
+- Patch filtering: patches with < 10 % valid pixels are skipped
+  (`min_valid_ratio: 0.1`)
+- Scheduler: ReduceLROnPlateau (factor 0.5, patience 5 *(Amy to confirm)*)
+- Batch size: 16
+- Epochs: up to 1000 with early stopping after 10 epochs without
+  validation improvement *(Amy to confirm)*; epochs actually run and best
+  validation loss (SWF units) per checkpoint:
+
+  | Encoder | Epochs run | Best validation loss |
+  |---|---|---|
+  | `tu-convnext_large` (default) | 23 | 4.50 |
+  | `resnet101` | 33 | 3.23 |
+  | `resnet50` | 40 | 3.60 |
+  | `efficientnet-b4` | 23 | 4.97 |
+
+- Hardware: one GPU (`gpu_count_used: 1`); GPU model TODO
 - Wall-clock training time: TODO
 
 ## Evaluation
