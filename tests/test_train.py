@@ -132,3 +132,21 @@ def test_sdb_train_without_validation_patches_runs_all_epochs_and_saves_best(sce
     assert meta["num_epochs_trained"] == 3
     assert (out / "best_model.pth").exists()
     assert len(list((out / "predictions").glob("*_pred.tif"))) == len(list((scene.parent / "Data" / "test").glob("*.tif")))
+
+
+def test_set_reproducible_turns_off_cudnn_benchmark(monkeypatch):
+    # cudnn.benchmark=True picks algorithms per run and undoes
+    # cudnn.deterministic=True, so set_reproducible must turn it off (#37).
+    from dl_bathy.train import set_reproducible
+    monkeypatch.setattr(torch.backends.cudnn, "benchmark", True)
+    monkeypatch.setattr(torch.backends.cudnn, "deterministic", False)
+    was_enabled = torch.are_deterministic_algorithms_enabled()
+    was_warn_only = torch.is_deterministic_algorithms_warn_only_enabled()
+    try:
+        set_reproducible(0)
+        assert torch.backends.cudnn.deterministic is True
+        assert torch.backends.cudnn.benchmark is False
+        assert torch.are_deterministic_algorithms_enabled()
+        assert torch.is_deterministic_algorithms_warn_only_enabled()
+    finally:
+        torch.use_deterministic_algorithms(was_enabled, warn_only=was_warn_only)

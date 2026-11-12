@@ -107,6 +107,10 @@ the next tag is cut.
 - `predict_depth`'s docstring said output depth is "positive = deeper";
   it's actually negative (0 = sea level), matching the LiDAR target
   convention used everywhere else in the pipeline.
+- **Issue #37**: `set_reproducible` turned on `cudnn.benchmark`, which lets
+  cuDNN choose different (possibly non-deterministic) algorithms on each run
+  and undid `cudnn.deterministic`. It is now off, and
+  `torch.use_deterministic_algorithms(True, warn_only=True)` is set.
 
 ## `v0.1.0` — 2026-08-08
 
