@@ -178,3 +178,37 @@ def test_pytmd_tide_grid_queries_lon_lat_for_projected_scene(tmp_path, monkeypat
     expected = (0.1 * np.array(plon) + 0.01 * np.array(plat)).reshape(6, 6)
     assert tide.shape == (6, 6)
     np.testing.assert_allclose(tide, expected, atol=1e-4)
+
+
+def test_sdb_split_fails_when_every_scene_fails(scene, capsys):
+    # Every scene is unreadable as a Sentinel-2 cube, so no patches are written:
+    # `sdb split` must report it and exit non-zero instead of succeeding (#35).
+    from tests.conftest import write_tif, SIZE
+    src = next((scene.parent / "s2").glob("*.tif"))
+    write_tif(src, np.ones((2, SIZE, SIZE)), "uint16")
+    assert main(["split", "--config", str(scene)]) == 1
+    captured = capsys.readouterr()
+    assert "1 found, 0 with patches, 1 failed" in captured.out
+    assert "No patches were written" in captured.err
+    assert "Insufficient bands" in captured.err
+
+
+def test_split_run_raises_when_no_scene_has_patches(scene):
+    import yaml
+    from dl_bathy.config import load_config
+    from dl_bathy.split import NoPatchesError, run
+    from tests.conftest import write_tif, SIZE
+    src = next((scene.parent / "s2").glob("*.tif"))
+    write_tif(src, np.ones((2, SIZE, SIZE)), "uint16")
+    with pytest.raises(NoPatchesError, match="1 failed"):
+        run(load_config(str(scene), "split"))
+
+
+def test_sdb_split_succeeds_and_reports_when_only_some_scenes_fail(scene, capsys):
+    from tests.conftest import write_tif, SIZE
+    write_tif(scene.parent / "s2" / "S2_2023-05-02_02-30-00_broken.tif",
+              np.ones((2, SIZE, SIZE)), "uint16")
+    assert main(["split", "--config", str(scene)]) == 0
+    out = capsys.readouterr().out
+    assert "2 found, 1 with patches, 1 failed" in out
+    assert "failed: " in out and "broken.tif: Insufficient bands" in out

@@ -246,6 +246,8 @@ support the `DATA_SOURCE` modes above; it reads directly from
 sdb split --config dl_bathy_config.yml
 ```
 
+Scenes that fail (unreadable file, missing tide model, ...) are reported and skipped, with a summary at the end. If no scene produces any patches, `sdb split` exits with status 1 and shows the first error.
+
 Key settings (`split` section; see `sdb init-config` for all of them):
 
 | Parameter | Default | Description |
