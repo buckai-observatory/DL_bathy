@@ -546,8 +546,15 @@ def find_sentinel_files(cfg):
         "(bring-your-own 13-band L2A GeoTIFFs).")
 
 
+class NoPatchesError(RuntimeError):
+    """No scene produced any patches (every scene failed or was skipped)."""
+
+
 def run(cfg):
-    """Run patch preparation with the settings in *cfg* (see dl_bathy.config)."""
+    """Run patch preparation with the settings in *cfg* (see dl_bathy.config).
+
+    Raises NoPatchesError if no scene produced any patches.
+    """
     patch_size   = cfg["patch_size"]
     stride_value = cfg["stride_value"]
     train_ratio  = cfg["train_ratio"]
@@ -596,6 +603,8 @@ def run(cfg):
 
     cloud_mask_dir     = cfg["cloud_mask_dir"]
     cloud_removal_count = []
+    failed_scenes       = []   # (scene, error message)
+    scenes_with_patches = 0
 
     for i, sentinel_file in enumerate(sentinel_files):
         try:
@@ -755,6 +764,7 @@ def run(cfg):
                     continue
 
                 print(f"Split: Train={len(train_meta)}, Val={len(val_meta)}, Test={len(test_meta)}")
+                scenes_with_patches += 1
 
                 # --- Save unbalanced patches ---
                 save_patches_from_metadata(train_meta, train_dir, clipped_transform, clipped_crs,
@@ -796,6 +806,21 @@ def run(cfg):
 
         except Exception as e:
             print(f"Error processing {sentinel_file}: {e}")
+            failed_scenes.append((sentinel_file, str(e)))
+
+    print("=" * 80)
+    print(f"Scenes: {len(sentinel_files)} found, {scenes_with_patches} with patches, "
+          f"{len(failed_scenes)} failed, "
+          f"{len(sentinel_files) - scenes_with_patches - len(failed_scenes)} skipped.")
+    for sentinel_file, error in failed_scenes:
+        print(f"  failed: {sentinel_file}: {error}")
+    if scenes_with_patches == 0:
+        reason = (f"first error: {failed_scenes[0][1]}" if failed_scenes
+                  else "no scene had valid patches overlapping the LiDAR")
+        raise NoPatchesError(
+            f"No patches were written from {len(sentinel_files)} scene(s) "
+            f"({len(failed_scenes)} failed; {reason}). Check the split settings "
+            "before running `sdb train`.")
 
     # =========================================================================
     # AUGMENTATION

@@ -37,8 +37,12 @@ def main(argv=None):
         return 0
 
     if args.command == "split":
-        from .split import run
-        run(load_config(args.config, "split"))
+        from .split import NoPatchesError, run
+        try:
+            run(load_config(args.config, "split"))
+        except NoPatchesError as e:
+            print(f"sdb split: error: {e}", file=sys.stderr)
+            return 1
     else:
         from .train import run
         run(load_config(args.config, "train"))

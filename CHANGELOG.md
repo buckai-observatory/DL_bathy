@@ -47,6 +47,11 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #35**: `sdb split` exited with status 0 even when every scene
+  failed, so the error only surfaced later as "No training patches found" in
+  `sdb train`. It now prints a summary of found, failed and skipped scenes
+  and exits with status 1 (`dl_bathy.split.run` raises `NoPatchesError`)
+  when no scene produced patches.
 - `predict_from_geoai_datacubes` returns NaN for pixels that the scene's
   Scene Classification Layer does not mark as water (new `water_only`
   option, on by default). The demo notebook now says that the model covers
