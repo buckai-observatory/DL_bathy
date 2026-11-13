@@ -57,7 +57,11 @@ def set_reproducible(seed=42):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark     = True
+    # benchmark=True lets cuDNN pick algorithms per run, which can differ
+    # between runs and undo deterministic=True.
+    torch.backends.cudnn.benchmark     = False
+    # Warn (rather than fail) when an operation has no deterministic version.
+    torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 # =============================================================================
