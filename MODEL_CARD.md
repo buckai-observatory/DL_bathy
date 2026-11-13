@@ -63,8 +63,10 @@ release being published).
 
 Values below are read from each released checkpoint's `metadata.json`
 on the Hugging Face Hub. All four deep-learning checkpoints share the same
-settings apart from the encoder. Items marked *(Amy to confirm)* match the
-current `sdb` defaults but are not recorded in `metadata.json`.
+settings apart from the encoder. Values marked † are not recorded in
+`metadata.json`; they are the settings of the original training script
+(`step2_train_test.py`, first published in this repository in March 2026)
+and are also the current `sdb` defaults.
 
 - Encoder backbone: `tu-convnext_large`
 - Input channels: 12 (Sentinel-2 bands B01–B12)
@@ -85,10 +87,10 @@ current `sdb` defaults but are not recorded in `metadata.json`.
 - Gradient clipping: max norm 5.0
 - Patch filtering: patches with < 10 % valid pixels are skipped
   (`min_valid_ratio: 0.1`)
-- Scheduler: ReduceLROnPlateau (factor 0.5, patience 5 *(Amy to confirm)*)
+- Scheduler: ReduceLROnPlateau (factor 0.5, patience 5 †)
 - Batch size: 16
 - Epochs: up to 1000 with early stopping after 10 epochs without
-  validation improvement *(Amy to confirm)*; epochs actually run and best
+  validation improvement †; epochs actually run and best
   validation loss (SWF units) per checkpoint:
 
   | Encoder | Epochs run | Best validation loss |
