@@ -293,7 +293,10 @@ def calculate_binary_metrics(y_true, y_pred, threshold):
 
     Returns
     -------
-    dict with keys: TP, TN, FP, FN, Precision, Recall, F1_Score, Accuracy
+    dict with keys: TP, TN, FP, FN, Precision, Recall, F1_Score, Accuracy.
+    A metric that is undefined because its denominator is zero (e.g. Precision
+    and Recall when no pixel is deep in either y_true or y_pred, as when the
+    test set has a single depth class) is NaN rather than 0.
     """
     valid = ~np.isnan(y_true)
     y_t   = y_true[valid]
@@ -307,10 +310,10 @@ def calculate_binary_metrics(y_true, y_pred, threshold):
     FP = np.sum(~pos_true &  pos_pred)
     FN = np.sum( pos_true & ~pos_pred)
 
-    precision = TP / (TP + FP + 1e-8)
-    recall    = TP / (TP + FN + 1e-8)
-    f1        = 2 * precision * recall / (precision + recall + 1e-8)
-    accuracy  = (TP + TN) / (TP + TN + FP + FN + 1e-8)
+    precision = TP / (TP + FP + 1e-8) if TP + FP else np.nan
+    recall    = TP / (TP + FN + 1e-8) if TP + FN else np.nan
+    f1        = 2 * precision * recall / (precision + recall + 1e-8)  # NaN if either is NaN
+    accuracy  = (TP + TN) / (TP + TN + FP + FN + 1e-8) if TP + TN + FP + FN else np.nan
 
     return {
         'TP': int(TP), 'TN': int(TN), 'FP': int(FP), 'FN': int(FN),
@@ -921,7 +924,11 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             cm       = calculate_binary_metrics(gt_all, pred_all, params["depth_threshold"])
             print(f"\n===== Overall [{label}] =====")
             print(f"RMSE={ov_rmse:.3f}m  MAE={ov_mae:.3f}m  SWF={ov_swf:.3f}m  RPE={ov_rpe:.2f}%")
-            print(f"Precision={cm['Precision']:.3f}  Recall={cm['Recall']:.3f}  F1={cm['F1_Score']:.3f}  Acc={cm['Accuracy']:.3f}")
+            fmt = lambda v: "n/a" if np.isnan(v) else f"{v:.3f}"
+            print(f"Precision={fmt(cm['Precision'])}  Recall={fmt(cm['Recall'])}  F1={fmt(cm['F1_Score'])}  Acc={fmt(cm['Accuracy'])}")
+            if np.isnan(cm['Precision']) or np.isnan(cm['Recall']):
+                print(f"  (n/a: no test pixel is deeper than depth_threshold={params['depth_threshold']} m "
+                      f"in the ground truth and/or the prediction, so these metrics are undefined)")
             results_list.append({
                 "File": "OVERALL", "RMSE_m": ov_rmse, "MAE_m": ov_mae, "SWF_m": ov_swf, "RPE_%": ov_rpe,
                 "Valid_pixels": n_pix, "GT_min_depth_m": gt_all.min(), "GT_max_depth_m": gt_all.max(),

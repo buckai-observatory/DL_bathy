@@ -150,3 +150,28 @@ def test_set_reproducible_turns_off_cudnn_benchmark(monkeypatch):
         assert torch.is_deterministic_algorithms_warn_only_enabled()
     finally:
         torch.use_deterministic_algorithms(was_enabled, warn_only=was_warn_only)
+
+
+def test_binary_metrics_are_nan_not_zero_for_a_single_depth_class():
+    """All test pixels shallower than depth_threshold: precision/recall are undefined (#56)."""
+    from dl_bathy.train import calculate_binary_metrics
+    y_true = np.array([-1.0, -2.0, -2.5, np.nan])
+    y_pred = np.array([-1.2, -1.8, -2.9, -1.0])
+    cm = calculate_binary_metrics(y_true, y_pred, threshold=3)
+    assert (cm["TP"], cm["TN"], cm["FP"], cm["FN"]) == (0, 3, 0, 0)
+    assert np.isnan(cm["Precision"]) and np.isnan(cm["Recall"]) and np.isnan(cm["F1_Score"])
+    assert cm["Accuracy"] == pytest.approx(1.0)
+
+
+def test_binary_metrics_unchanged_when_both_classes_are_present():
+    from dl_bathy.train import calculate_binary_metrics
+    y_true = np.array([-1.0, -5.0, -6.0, -2.0, -7.0])
+    y_pred = np.array([-1.0, -5.0, -1.0, -4.0, -8.0])
+    cm = calculate_binary_metrics(y_true, y_pred, threshold=3)
+    assert (cm["TP"], cm["TN"], cm["FP"], cm["FN"]) == (2, 1, 1, 1)
+    assert cm["Precision"] == 2 / (3 + 1e-8)
+    assert cm["Recall"] == 2 / (3 + 1e-8)
+    assert cm["Accuracy"] == 3 / (5 + 1e-8)
+    # A defined zero stays zero: deep pixels exist but none is predicted deep.
+    zero = calculate_binary_metrics(np.array([-5.0, -1.0]), np.array([-1.0, -5.0]), threshold=3)
+    assert zero["Precision"] == 0 and zero["Recall"] == 0
