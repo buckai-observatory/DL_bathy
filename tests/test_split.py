@@ -6,7 +6,7 @@ import rasterio
 
 from dl_bathy.cli import main
 from dl_bathy.patch_io import read_patch_tif
-from dl_bathy.split import (assign_split, balance_metadata_by_depth,
+from dl_bathy.split import (assign_split, augment_folder_tifs, balance_metadata_by_depth,
                                 extract_patches_no_nans_gen)
 
 
@@ -73,6 +73,28 @@ def test_sdb_split_end_to_end(scene):
     assert np.all(valid_depth <= -1) and np.all(valid_depth >= -25.01)
     assert np.all(np.isfinite(X))                                 # log-scaled reflectance
     assert (data / "cloud_removal_counts.csv").read_text().splitlines()[1] == "20230501,400"
+
+
+def test_rerunning_split_does_not_augment_augmented_patches(scene):
+    """A second `sdb split` into the same output_dir must not rotate the _rot*/_flip files again (#34)."""
+    data = scene.parent / "Data"
+    assert main(["split", "--config", str(scene)]) == 0
+    first = sorted(p.name for p in (data / "train_aug").glob("*.tif"))
+    assert main(["split", "--config", str(scene)]) == 0
+    second = sorted(p.name for p in (data / "train_aug").glob("*.tif"))
+    assert second == first
+    assert not any("_rot90_" in name or "_flip_" in name for name in second)
+    assert len(second) == 5 * len(list((data / "train").glob("*.tif")))
+
+
+def test_augment_folder_tifs_only_augments_the_given_files(tmp_path):
+    from tests.conftest import write_tif
+    for name in ("a.tif", "b.tif"):
+        write_tif(tmp_path / name, np.arange(16, dtype="float32").reshape(4, 4), "float32")
+    augment_folder_tifs(str(tmp_path), rotations=(90,), flip=True, files=["a.tif"])
+    assert sorted(p.name for p in tmp_path.glob("*.tif")) == ["a.tif", "a_flip.tif", "a_rot90.tif", "b.tif"]
+    with rasterio.open(tmp_path / "a_rot90.tif") as src:
+        np.testing.assert_array_equal(src.read(1), np.rot90(np.arange(16).reshape(4, 4)))
 
 
 def test_custom_tide_grid_is_added_to_depths(scene):
