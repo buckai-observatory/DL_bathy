@@ -61,7 +61,7 @@ to date on `main`:
 4. **Upload the corresponding trained checkpoint to the Hugging Face
    Hub** under the repository referenced in
    [`MODEL_CARD.md`](../MODEL_CARD.md) (default:
-   `buckai-observatory/dl-bathy-weights`). Tag the HF revision with the
+   `BuckAIObservatory/dl-bathy-weights`). Tag the HF revision with the
    same version string (`v0.2.0`) so
    `inference.load_model(revision="v0.2.0")` reproducibly pins to the
    checkpoint that ships with a specific software release.
