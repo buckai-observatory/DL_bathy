@@ -42,10 +42,30 @@ sys.path.insert(0, str(REPO_ROOT))
 DEFAULT_AOI = [145.14, -14.56, 145.66, -14.26]
 DEFAULT_TIME_RANGE = ("2020-06-01", "2020-09-30")
 DEFAULT_MAX_CLOUD_COVERAGE = 0.20
+# The released weights were trained on 0-20 m (see MODEL_CARD.md) and the
+# ground truth reaches -30 m, so, as in the demo notebook, only ground-truth
+# depths in this range (m, negative below sea level) are scored.
+SCORED_RANGE = (-20.0, 0.0)
+
+
+def _depth_errors(depths: np.ndarray, gt_aligned: np.ndarray, scored_range=SCORED_RANGE) -> dict:
+    """RMSE / MAE / bias of *depths* against *gt_aligned* over the pixels where
+    both are finite and the ground truth lies within *scored_range*."""
+    valid = (np.isfinite(gt_aligned) & np.isfinite(depths)
+             & (gt_aligned >= scored_range[0]) & (gt_aligned <= scored_range[1]))
+    result = {"scored_range_m": list(scored_range), "overlapping_valid_pixels": int(valid.sum())}
+    if valid.any():
+        err = depths[valid] - gt_aligned[valid]
+        result.update({
+            "rmse_m": float(np.sqrt(np.mean(err ** 2))),
+            "mae_m": float(np.mean(np.abs(err))),
+            "bias_m": float(np.mean(err)),
+        })
+    return result
 
 
 def _score_against_ground_truth(depths: np.ndarray, meta: dict, outdir: str) -> dict | None:
-    """Reproduce the demo notebook's GT comparison (cells 13-14). Returns
+    """Reproduce the demo notebook's GT comparison (cells 13-15, 0-20 m only). Returns
     None if Ground_Truth.zip isn't available rather than failing the run --
     the fetch+predict path is the thing being smoke-tested, not the GT
     comparison."""
@@ -80,19 +100,11 @@ def _score_against_ground_truth(depths: np.ndarray, meta: dict, outdir: str) -> 
         resampling=Resampling.bilinear,
     )
 
-    valid = np.isfinite(gt_aligned) & np.isfinite(depths)
-    n_valid = int(valid.sum())
-    if n_valid == 0:
-        return {"ground_truth_file": gt_path, "overlapping_valid_pixels": 0}
-
-    err = depths[valid] - gt_aligned[valid]
-    return {
-        "ground_truth_file": gt_path,
-        "overlapping_valid_pixels": n_valid,
-        "rmse_m": float(np.sqrt(np.mean(err ** 2))),
-        "mae_m": float(np.mean(np.abs(err))),
-        "bias_m": float(np.mean(err)),
-    }
+    scores = _depth_errors(depths, gt_aligned)
+    print(f"[predict_demo_aoi] ground truth scored over {abs(SCORED_RANGE[1]):g}-{abs(SCORED_RANGE[0]):g} m: "
+          + ", ".join(f"{k}={v:.2f}" for k, v in scores.items() if k.endswith("_m") and k != "scored_range_m")
+          + f" (n={scores['overlapping_valid_pixels']})")
+    return {"ground_truth_file": gt_path, **scores}
 
 
 def main() -> int:

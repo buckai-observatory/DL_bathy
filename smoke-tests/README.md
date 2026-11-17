@@ -16,7 +16,7 @@ project's `smoke-tests/` directory.
 | Script | What it checks |
 |---|---|
 | `check_env.sh` | Every package in `requirements.txt` imports cleanly; reports exactly what's missing. |
-| `predict_demo_aoi.sh` | The full inference-only path end-to-end: fetch a real Sentinel-2 scene over the public GBR demo AOI via `geoai-datacubes`, download real weights from the Hugging Face Hub, predict depths, and (if `Ground_Truth.zip` is present at the repo root) score against the public ground truth. The scripted equivalent of running `notebooks/dl_bathy_demo.ipynb` end-to-end without Jupyter. |
+| `predict_demo_aoi.sh` | The full inference-only path end-to-end: fetch a real Sentinel-2 scene over the public GBR demo AOI via `geoai-datacubes`, download real weights from the Hugging Face Hub, predict depths, and (if `Ground_Truth.zip` is present at the repo root) score against the public ground truth over 0-20 m (the released models' training range, as in the notebook). The scripted equivalent of running `notebooks/dl_bathy_demo.ipynb` end-to-end without Jupyter. |
 
 Every script is both a valid bash script and a valid SLURM job script (the
 `#SBATCH` header lines are comments to bash, directives to `sbatch`):
