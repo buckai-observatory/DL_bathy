@@ -45,6 +45,12 @@ the next tag is cut.
   the public GBR demo AOI — the scripted equivalent of running
   `notebooks/dl_bathy_demo.ipynb` without Jupyter.
 
+### Changed
+
+- The model weights moved to the BuckAI Observatory organization on Hugging Face:
+  `inference.HF_DEFAULT_REPO_ID` is now `BuckAIObservatory/dl-bathy-weights`
+  (the old `Amy5133/dl-bathy-weights` name redirects).
+
 ### Fixed
 
 - **Issue #35**: `sdb split` exited with status 0 even when every scene

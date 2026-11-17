@@ -43,12 +43,10 @@ from dl_bathy.config import SPLIT_DEFAULTS
 #: Default HF Hub repository holding published DL_bathy checkpoints.
 #: Weights are versioned there; update the ``revision`` argument to pin to a
 #: specific release.
-#: TEMPORARY: weights are published at Amy5133/dl-bathy-weights pending a
-#: transfer to the buckai-observatory org on Hugging Face (needs org access
-#: there first). Update back to "buckai-observatory/dl-bathy-weights" once
-#: that transfer happens -- HF's repo move preserves all files, so this is
-#: the only line that needs to change.
-HF_DEFAULT_REPO_ID = "Amy5133/dl-bathy-weights"
+#: The repository moved from Amy5133/dl-bathy-weights to the BuckAI
+#: Observatory organization in November 2026; Hugging Face redirects the
+#: old name, so older releases that use it keep working.
+HF_DEFAULT_REPO_ID = "BuckAIObservatory/dl-bathy-weights"
 
 #: Default checkpoint filename inside the HF repo. Matches the filename that
 #: step2_train_test.py writes at end-of-training.
