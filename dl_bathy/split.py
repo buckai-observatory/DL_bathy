@@ -458,18 +458,25 @@ def balance_metadata_by_depth(metadata_list, bins=np.arange(-70, 1, 1)):
 # DATA AUGMENTATION
 # =============================================================================
 
-def augment_folder_tifs(folder_path, rotations=(90, 180, 270), flip=True):
+def augment_folder_tifs(folder_path, rotations=(90, 180, 270), flip=True, files=None):
     """
-    Augment all GeoTIFFs in a folder with rotations and/or a horizontal flip.
+    Augment GeoTIFFs in a folder with rotations and/or a horizontal flip.
 
     New files are written to the same folder with '_rot{angle}' or '_flip'
-    suffixes appended to the base filename.
+    suffixes appended to the base filename. If *files* (file names inside
+    *folder_path*) is given, only those are augmented, so that files written
+    by an earlier augmentation run are not augmented again; otherwise every
+    .tif in the folder is.
     """
     if not os.path.exists(folder_path):
         print(f"Augmentation skipped – folder not found: {folder_path}")
         return
 
-    for f in sorted(glob.glob(os.path.join(folder_path, "*.tif"))):
+    if files is None:
+        paths = glob.glob(os.path.join(folder_path, "*.tif"))
+    else:
+        paths = [os.path.join(folder_path, os.path.basename(f)) for f in files]
+    for f in sorted(paths):
         try:
             with rasterio.open(f) as src:
                 arr  = src.read()
@@ -839,11 +846,15 @@ def run(cfg):
                      else (bal_dir if cfg["apply_balance"] else None)
             if source is None:
                 continue
-            for f in glob.glob(os.path.join(source, "*.tif")):
-                dst = os.path.join(aug_dir, os.path.basename(f))
+            originals = [os.path.basename(f) for f in glob.glob(os.path.join(source, "*.tif"))]
+            for name in originals:
+                dst = os.path.join(aug_dir, name)
                 if not os.path.exists(dst):
-                    shutil.copy(f, dst)
-            augment_folder_tifs(aug_dir, rotations=cfg["augmentation_rotations"], flip=cfg["augmentation_flip"])
+                    shutil.copy(os.path.join(source, name), dst)
+            # Augment only this run's source patches, not the _rot*/_flip files
+            # an earlier run left in aug_dir (#34).
+            augment_folder_tifs(aug_dir, rotations=cfg["augmentation_rotations"],
+                                flip=cfg["augmentation_flip"], files=originals)
     else:
         print("apply_augmentation=False – augmentation skipped.")
 
