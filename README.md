@@ -120,7 +120,7 @@ The previous requirements files still work:
 ```bash
 pip install -r requirements.txt            # full pipeline (step1 + step2 + inference)
 pip install -r requirements-inference.txt  # inference.py only, no GDAL/pyTMD
-pip install -r requirements-test.txt       # losses.py unit tests only, no GDAL/pyTMD/ML stack
+pip install -r requirements-test.txt       # test suite, same as pip install -e ".[train,dev]"
 ```
 
 `huggingface_hub` is only required for the **inference-only** entry
