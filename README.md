@@ -276,8 +276,12 @@ train_balanced/ valid_balanced/ test_balanced/   (only if apply_balance)
 train_aug/      valid_aug/      test_aug/        (only if apply_augmentation)
 *_Patches_Mask_split.jpg           ← Split visualisation (unbalanced)
 *_Patches_Mask_balanced.jpg        ← Split visualisation (balanced, if apply_balance)
-cloud_removal_counts.csv
+cloud_removal_counts.csv           ← Per scene: Date (YYYYMMDD) and Non_water_pixels_masked
 ```
+
+`cloud_removal_counts.csv` counts, for each scene, the pixels masked out
+because their SCL class is not water (6). That includes land as well as
+cloud, cloud shadow and other classes, so it is not a cloud count.
 
 Each GeoTIFF patch contains **14 bands**:
 - Bands 1–12: Sentinel-2 reflectance (log-scaled if `Logcube=True`)

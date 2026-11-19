@@ -72,7 +72,8 @@ def test_sdb_split_end_to_end(scene):
     valid_depth = y[mask > 0]
     assert np.all(valid_depth <= -1) and np.all(valid_depth >= -25.01)
     assert np.all(np.isfinite(X))                                 # log-scaled reflectance
-    assert (data / "cloud_removal_counts.csv").read_text().splitlines()[1] == "20230501,400"
+    assert (data / "cloud_removal_counts.csv").read_text().splitlines() == [
+        "Date,Non_water_pixels_masked", "20230501,400"]
 
 
 def test_rerunning_split_does_not_augment_augmented_patches(scene):
@@ -134,6 +135,9 @@ def test_geoai_datacubes_scene_uses_acquisition_time_from_userdata(scene):
     assert files
     _, y, mask, _ = read_patch_tif(files[0])
     assert y[mask > 0].max() <= -1 + 1.5 + 1e-4
+    # The date comes from the folder name, not from 'full' in the file name (#36).
+    counts = (scene.parent / "Data" / "cloud_removal_counts.csv").read_text().splitlines()
+    assert counts == ["Date,Non_water_pixels_masked", "20230501,400"]
 
 
 def test_scene_acquisition_datetime_fallbacks(tmp_path):
@@ -234,3 +238,14 @@ def test_sdb_split_succeeds_and_reports_when_only_some_scenes_fail(scene, capsys
     out = capsys.readouterr().out
     assert "2 found, 1 with patches, 1 failed" in out
     assert "failed: " in out and "broken.tif: Insufficient bands" in out
+
+
+def test_cloud_counts_keep_their_dates_when_an_earlier_scene_fails(scene):
+    # The broken scene sorts first and fails before its mask is counted: the
+    # one row must keep the date of the scene it was counted for (#36).
+    from tests.conftest import write_tif, SIZE
+    write_tif(scene.parent / "s2" / "S2_2023-04-30_02-30-00_broken.tif",
+              np.ones((2, SIZE, SIZE)), "uint16")
+    assert main(["split", "--config", str(scene)]) == 0
+    counts = (scene.parent / "Data" / "cloud_removal_counts.csv").read_text().splitlines()
+    assert counts == ["Date,Non_water_pixels_masked", "20230501,400"]
