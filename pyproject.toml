@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm>=8"]
+# setuptools 77 is the first to accept an SPDX license expression
+requires = ["setuptools>=77", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +8,13 @@ name = "dl-bathy"
 dynamic = ["version"]
 description = "Deep-learning satellite-derived bathymetry from Sentinel-2 imagery with LiDAR ground truth"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Hsiao-Jou Hsu"}, {name = "Joachim Moortgat"}]
 requires-python = ">=3.10"
 keywords = ["bathymetry", "remote sensing", "Sentinel-2", "LiDAR", "deep learning"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Topic :: Scientific/Engineering :: GIS",
 ]
 # Core: patch preparation from local scenes (`sdb split`)
