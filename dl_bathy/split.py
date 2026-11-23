@@ -609,7 +609,7 @@ def run(cfg):
     print(f"Found {len(sentinel_files)} Sentinel-2 file(s) for processing.")
 
     cloud_mask_dir     = cfg["cloud_mask_dir"]
-    cloud_removal_count = []
+    cloud_removal_count = []   # (date_str, masked pixel count) per scene
     failed_scenes       = []   # (scene, error message)
     scenes_with_patches = 0
 
@@ -689,7 +689,9 @@ def run(cfg):
                 cloud_mask = cld
 
             valid_pixel_mask = (cloud_mask == 0)
-            cloud_removal_count.append(int(np.sum(cloud_mask > 0)))
+            # The mask is 1 for every non-water SCL class (land and cloud alike),
+            # so this counts the non-water pixels masked out, not only clouds (#36).
+            cloud_removal_count.append((date_str, int(np.sum(cloud_mask > 0))))
 
             # --- Reproject LiDAR to Sentinel-2 grid ---
             resampled_lidar = np.empty((cube.shape[1], cube.shape[2]), dtype=lidar_grid.dtype)
@@ -863,13 +865,10 @@ def run(cfg):
     # =========================================================================
 
     if cloud_removal_count:
-        n     = len(cloud_removal_count)
-        dates = [
-            os.path.basename(f).split('_')[1].replace('-', '') if '_' in os.path.basename(f)
-            else os.path.basename(f)
-            for f in sentinel_files[:n]
-        ]
-        pd.DataFrame({'Date': dates, 'Cloud_Pixels_Removed': cloud_removal_count}) \
+        # Dates are recorded with each count, so a scene that failed earlier
+        # cannot shift them, and come from the same parsing as the cached
+        # mask name (geoai-datacubes scenes have no date in the file name) (#36).
+        pd.DataFrame(cloud_removal_count, columns=['Date', 'Non_water_pixels_masked']) \
           .to_csv(os.path.join(LiDAR_Model, 'cloud_removal_counts.csv'), index=False)
         print("Cloud removal statistics saved.")
 
