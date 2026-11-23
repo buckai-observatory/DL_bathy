@@ -33,7 +33,6 @@ matplotlib:matplotlib
 scipy:scipy
 scikit-image:skimage
 rasterio:rasterio
-gdal:osgeo.gdal
 geoai-datacubes:geoai_datacubes
 torch:torch
 torchvision:torchvision
