@@ -1,5 +1,5 @@
-# Minimal env to run tests/test_losses.py -- no GDAL, rasterio, pyTMD,
-# geoai-datacubes, or huggingface_hub required. This is exactly what
-# .github/workflows/tests.yml installs in CI.
-torch
-pytest
+# Everything the test suite (tests/) needs: this package with its [train]
+# and [dev] extras, as .github/workflows/tests.yml installs it. Run from the
+# repository root. For a CPU-only PyTorch, first run
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+-e .[train,dev]

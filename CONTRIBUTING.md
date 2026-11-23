@@ -66,8 +66,9 @@ cd DL_bathy
 pip install -r requirements.txt
 ```
 
-Only touching `losses.py` or `inference.py`? `requirements-test.txt` and
-`requirements-inference.txt` are lighter, GDAL-free subsets — see the
+To run the tests, `pip install -r requirements-test.txt` (the same as
+`pip install -e ".[train,dev]"`) is enough. Only touching `inference.py`?
+`requirements-inference.txt` is a lighter, GDAL-free subset — see the
 README's Requirements section.
 
 Sentinel-2 imagery is fetched at run time via

@@ -66,6 +66,6 @@ if missing:
     print("Or just run the tier you actually need:")
     print("  pip install -r requirements.txt            # full pipeline")
     print("  pip install -r requirements-inference.txt  # inference.py only")
-    print("  pip install -r requirements-test.txt       # losses.py tests only")
+    print("  pip install -r requirements-test.txt       # test suite")
 sys.exit(0 if not missing else 1)
 PY
