@@ -18,7 +18,7 @@ Two typical entry points:
   Sentinel-2 L2A bands 1--12 (B01--B12). Suitable when you already have the
   imagery on disk or when running against many AOIs sequentially.
 
-The model architecture is reconstructed exactly as in ``step2_train_test.py``:
+The model architecture is reconstructed exactly as in ``dl_bathy/train.py``:
 smp.DeepLabV3Plus with a 12-band input head and an ImageNet-pretrained
 encoder (default: tu-convnext_large). Only the weights change with each
 release published to the Hub.
@@ -49,11 +49,11 @@ from dl_bathy.config import SPLIT_DEFAULTS
 HF_DEFAULT_REPO_ID = "BuckAIObservatory/dl-bathy-weights"
 
 #: Default checkpoint filename inside the HF repo. Matches the filename that
-#: step2_train_test.py writes at end-of-training.
+#: dl_bathy/train.py writes at end-of-training.
 HF_DEFAULT_FILENAME = "deeplabv3_bathy_final.pth"
 
 #: Encoder backbone used by the reference checkpoint. Same string accepted by
-#: ``step2_train_test.py``'s ``Model_mode``. Passed straight through to smp.
+#: ``dl_bathy/train.py``'s ``Model_mode``. Passed straight through to smp.
 DEFAULT_ENCODER = "tu-convnext_large"
 
 # DeepLabV3+ encoder output stride: input height and width must be multiples of it.
@@ -62,7 +62,7 @@ _OUTPUT_STRIDE = 16
 #: Explicit Sentinel-2 L2A band list to fetch via geoai-datacubes. Must be
 #: passed explicitly -- geoai-datacubes' bands=None default for Sentinel-2
 #: only resolves to ["B04", "B08", "SCL", "AOT", "WVP"] (5 bands), not the
-#: full spectral stack this model expects. Matches step1_splitting.py's
+#: full spectral stack this model expects. Matches dl_bathy/split.py's
 #: _S2_BANDS so fetched scenes have the same 13-band layout (B01-B12 + SCL)
 #: the training pipeline uses.
 S2_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
@@ -74,7 +74,7 @@ S2_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08",
 # ----------------------------------------------------------------------------
 
 def _resolve_encoder(encoder_name: str) -> str:
-    """Map aliases used in step2_train_test.py to smp encoder strings."""
+    """Map aliases used in dl_bathy/train.py to smp encoder strings."""
     mode_map = {
         "efficientnet-b4":       "efficientnet-b4",
         "convnext":              "tu-convnext_large",
@@ -98,8 +98,8 @@ def build_model(encoder_name: str = DEFAULT_ENCODER,
                 device: Union[str, torch.device, None] = None) -> nn.Module:
     """Reconstruct the DL_bathy DeepLabV3+ architecture (no weights loaded).
 
-    Matches the exact call in ``step2_train_test.py``'s ``load_model``, minus
-    the training-only bits (optimiser, scheduler, gradient scaler). Encoder
+    Matches the exact call in ``dl_bathy/train.py``'s ``load_model``, minus
+    the training-only bits (optimiser, scheduler). Encoder
     weights are set to ``None`` because a checkpoint is expected to overwrite
     them shortly; there is no reason to spend the download budget on ImageNet
     weights that will be discarded on the next line.
@@ -197,7 +197,7 @@ def load_model(
     if isinstance(state, dict) and "state_dict" in state:
         state = state["state_dict"]
     # Handle checkpoints saved from DataParallel-wrapped models (prefixed
-    # with "module."), which is how step2_train_test.py saves them when
+    # with "module."), which is how dl_bathy/train.py saves them when
     # trained on multiple GPUs.
     if any(k.startswith("module.") for k in state.keys()):
         state = {k[len("module."):]: v for k, v in state.items()}
@@ -363,7 +363,7 @@ def predict_from_geoai_datacubes(
         Fraction ``[0..1]`` passed through to geoai-datacubes.
     resolution : int
         Output pixel size in metres. Matches the ``FETCH_RESOLUTION_M``
-        parameter in ``step1_splitting.py``.
+        parameter in ``dl_bathy/split.py``.
     save_folder : str
         Where geoai-datacubes writes the fetched scene folder. Local disk
         only; not uploaded anywhere.

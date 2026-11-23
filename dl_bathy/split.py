@@ -809,8 +809,8 @@ def run(cfg):
                 # --- Unbalanced split overlay plot ---
                 _split_overlay(lidar_clipped,
                                {'train': train_meta, 'val': val_meta, 'test': test_meta},
-                               valid_pixel_mask, {'train': 'Greens', 'val': 'Reds'},
-                               f"Patch split ({date_str}) – Train (green), Val (red), NaN (orange)",
+                               valid_pixel_mask, {'train': 'Greens', 'val': 'Reds', 'test': 'Blues'},
+                               f"Patch split ({date_str}) – Train (green), Val (red), Test (blue), NaN (orange)",
                                os.path.join(LiDAR_Model, f"{date_str}_Patches_Mask_split.jpg"), dpi)
 
         except Exception as e:

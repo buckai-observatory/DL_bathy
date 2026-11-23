@@ -78,7 +78,7 @@ TRAIN_DEFAULTS = {
     "LiDAR_Model": "Model_output",    # Output folder for models, logs and plots
     "Model_mode": "tu-convnext_large",
     "encoder_weights": "imagenet",    # null trains the encoder from scratch (no download)
-    "depth_scale": 1,
+    "depth_scale": 1,                 # Unused: only recorded in metadata.json
     "min_valid_ratio": 0.1,
     "min_valid_ratio_for_val": 0.1,
     "grad_clip_norm": 5.0,
