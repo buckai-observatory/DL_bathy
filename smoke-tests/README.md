@@ -1,10 +1,11 @@
 # DL_bathy smoke tests
 
-`tests/` (pytest, CI-wired) covers `losses.py` only, deliberately avoiding
-GDAL / network / model-weight dependencies so it runs fast on every push.
-That leaves the rest of the pipeline — fetching real Sentinel-2 imagery,
-loading real weights, predicting, scoring against ground truth — without
-automated coverage. `smoke-tests/` fills that gap with network-dependent,
+`tests/` (pytest, CI-wired) covers the configuration and command line,
+patch splitting, training, inference and the loss functions on tiny
+synthetic data, deliberately avoiding network / model-weight / tide-model
+dependencies so it runs on every push. That leaves the real-data path —
+fetching real Sentinel-2 imagery, loading real weights, predicting, scoring
+against ground truth — without automated coverage. `smoke-tests/` fills that gap with network-dependent,
 end-to-end scripts you run manually (or via SLURM), not in CI.
 
 Pattern borrowed from the sibling
