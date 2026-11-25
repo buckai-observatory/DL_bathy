@@ -6,10 +6,10 @@ torch
 torchvision
 segmentation-models-pytorch
 huggingface_hub
+# Reads Sentinel-2 GeoTIFFs (your own, or fetched by geoai-datacubes).
+rasterio
 
-# predict_from_geoai_datacubes() additionally needs these two (lazily
-# imported, so build_model()/load_model()/predict_depth() work without
-# them if you bring your own Sentinel-2 imagery instead of auto-fetching
-# it):
-#   rasterio
+# predict_from_geoai_datacubes() additionally needs geoai-datacubes (lazily
+# imported, so build_model()/load_model()/predict_depth() work without it
+# if you bring your own Sentinel-2 imagery instead of auto-fetching it):
 #   geoai-datacubes

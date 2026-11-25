@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use DL_bathy in your research, please cite it using the metadata below."
-title: "DL_bathy: A deep-learning pipeline for satellite-derived bathymetry from Sentinel-2 imagery"
+title: "DL_bathy: A deep learning pipeline for satellite-derived bathymetry from Sentinel-2 imagery"
 doi: "10.5281/zenodo.21845182"
 version: "0.1.0"
 date-released: "2026-08-08"

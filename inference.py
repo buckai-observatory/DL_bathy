@@ -370,8 +370,9 @@ def predict_from_geoai_datacubes(
         Output pixel size in metres. Matches the ``FETCH_RESOLUTION_M``
         parameter in ``dl_bathy/split.py``.
     save_folder : str
-        Where geoai-datacubes writes the fetched scene folder. Local disk
-        only; not uploaded anywhere.
+        Local folder for the fetched scenes; nothing is uploaded. Each call
+        writes into a new subfolder (``fetch-<date>-<time>-<random>``), so a
+        scene left there by an earlier call is never used by mistake.
     device : str | torch.device | None
         Compute device; defaults to CUDA > MPS > CPU.
     water_only : bool
@@ -398,11 +399,19 @@ def predict_from_geoai_datacubes(
         ) from e
     import glob
     import os
+    import tempfile
+    import time
     import rasterio
 
     if model is None:
         model = load_model(device=device)
 
+    # geoai-datacubes names scene folders by mission, date and scene, so a
+    # folder from an earlier call (another AOI or time range) could otherwise
+    # be taken for this call's scene. Fetch into a new subfolder instead.
+    os.makedirs(save_folder, exist_ok=True)
+    run_folder = tempfile.mkdtemp(prefix=time.strftime("fetch-%Y%m%d-%H%M%S-"),
+                                  dir=save_folder)
     fetch_sentinel_data(
         mission="Sentinel-2",
         bands=S2_BANDS,   # explicit 13-band L2A list; see S2_BANDS docstring
@@ -410,18 +419,18 @@ def predict_from_geoai_datacubes(
         roi=aoi,
         provider="earthsearch",
         resolution=resolution,
-        save_folder=save_folder,
+        save_folder=run_folder,
         max_cloud_coverage=max_cloud_coverage,
     )
 
     # Locate the multi-band GeoTIFF that geoai-datacubes wrote. Its filename
     # convention is <Mission>_full_size.tiff under a scene-id folder.
     matches = sorted(glob.glob(
-        os.path.join(save_folder, "*", "Sentinel-2_full_size.tiff")
+        os.path.join(run_folder, "*", "Sentinel-2_full_size.tiff")
     ))
     if not matches:
         raise RuntimeError(
-            f"No Sentinel-2 scene written under {save_folder!r}; check the "
+            f"No Sentinel-2 scene written under {run_folder!r}; check the "
             "AOI / time range / cloud filter."
         )
     scene_path = matches[-1]

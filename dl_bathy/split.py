@@ -71,7 +71,9 @@ def _fetch_scenes_via_geoai_datacubes(aoi, time_range, max_cloud, res, out_dir):
     except ImportError as exc:
         raise ImportError(
             "DATA_SOURCE='geoai_datacubes' requires the geoai-datacubes "
-            "package. Install with `pip install 'dl-bathy[fetch]'` (see "
+            "package. In a clone of DL_bathy run `pip install -e \".[fetch]\"`, "
+            "or install from GitHub with "
+            "`pip install \"dl-bathy[fetch] @ git+https://github.com/buckai-observatory/DL_bathy\"` (see "
             "https://github.com/buckai-observatory/geoai-datacubes). "
             "Alternatively set DATA_SOURCE='local_scenes' and point "
             "LOCAL_SCENES_DIR at a folder of 13-band L2A GeoTIFFs.") from exc
@@ -219,8 +221,9 @@ def sample_tide_pytmd(lons, lats, acq_datetime, model_name="EOT20", directory=No
         import pyTMD
     except ImportError as exc:
         raise ImportError(
-            "TIDE_SOURCE='pytmd' requires the pyTMD package. Install with "
-            "`pip install 'dl-bathy[tide]'`. Alternatively set TIDE_SOURCE='custom' "
+            "TIDE_SOURCE='pytmd' requires the pyTMD package. In a clone of DL_bathy "
+            "run `pip install -e \".[tide]\"`, or install from GitHub with "
+            "`pip install \"dl-bathy[tide] @ git+https://github.com/buckai-observatory/DL_bathy\"`. Alternatively set TIDE_SOURCE='custom' "
             "(bring-your-own tide grids) or 'none' (skip tidal correction).") from exc
 
     delta_time = np.full(lons.shape, np.datetime64(acq_datetime), dtype="datetime64[ns]")

@@ -137,11 +137,6 @@ the next tag is cut.
   training to 20–30 m. Configs that set `depth_type: deep` explicitly now
   train on depths greater than `depth_threshold`; use `shallow` to get the
   old behaviour.
-- `inference.py`'s `HF_DEFAULT_REPO_ID` temporarily points at
-  `Amy5133/dl-bathy-weights` instead of `buckai-observatory/dl-bathy-weights`,
-  which doesn't exist yet — the inference-only quickstart and demo notebook
-  were failing with no arguments. Revert once the weights repo is
-  transferred to the `buckai-observatory` org.
 - `predict_depth`'s docstring said output depth is "positive = deeper";
   it's actually negative (0 = sea level), matching the LiDAR target
   convention used everywhere else in the pipeline.

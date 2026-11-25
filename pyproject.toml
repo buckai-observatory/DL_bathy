@@ -54,3 +54,6 @@ fallback_version = "0.1.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests write about 3 GB of temporary patches per run; keep them only
+# for failed tests instead of for the last three runs.
+tmp_path_retention_policy = "failed"

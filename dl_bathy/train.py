@@ -37,8 +37,9 @@ try:
     import segmentation_models_pytorch as smp
 except ImportError as e:  # pragma: no cover - exercised only without the [train] extra
     raise ImportError(
-        "`sdb train` needs PyTorch and segmentation-models-pytorch: "
-        "pip install 'dl-bathy[train]'"
+        "`sdb train` needs PyTorch and segmentation-models-pytorch. In a clone "
+        "of DL_bathy run `pip install -e \".[train]\"`, or install from GitHub "
+        "with `pip install \"dl-bathy[train] @ git+https://github.com/buckai-observatory/DL_bathy\"`."
     ) from e
 
 from .patch_io import read_patch_tif
