@@ -313,3 +313,46 @@ def test_patch_transform_matches_the_affine_composition(tmp_path):
                                base, "EPSG:32755", "20200819", "scene.tif", "train")
     with rasterio.open(next((tmp_path / "out").glob("*.tif"))) as src:
         assert src.transform == Affine(10.0, 0.0, 500240.0, 0.0, -10.0, 8399840.0)
+
+
+# --- Issue #77 ----------------------------------------------------------------
+
+def test_split_without_tide_model_files_fails_before_fetching(scene, tmp_path, monkeypatch, capsys):
+    # Without the EOT20 files, sdb split fetched the scenes first and then
+    # failed with only a file path. It must now stop before any fetch or folder.
+    pytest.importorskip("pyTMD")
+    import dl_bathy.split as split
+    fetched = []
+    monkeypatch.setattr(split, "find_sentinel_files", lambda cfg: fetched.append(1) or [])
+    (tmp_path / "empty_tides").mkdir()
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["split"].update(TIDE_SOURCE="pytmd", TIDE_MODEL_DIRECTORY="empty_tides")
+    scene.write_text(yaml.safe_dump(cfg))
+    assert main(["split", "--config", str(scene)]) == 1
+    err = capsys.readouterr().err
+    assert "sdb split: error:" in err
+    for text in ("EOT20", "empty_tides", "https://doi.org/10.17882/79489",
+                 "TIDE_SOURCE: none", "TIDE_SOURCE: custom"):
+        assert text in err
+    assert not fetched
+    assert not (scene.parent / "Data").exists()
+
+
+def test_split_without_pytmd_fails_before_fetching(scene, monkeypatch, capsys):
+    import builtins
+    import dl_bathy.split as split
+    real_import = builtins.__import__
+
+    def no_pytmd(name, *args, **kwargs):
+        if name == "pyTMD":
+            raise ImportError("No module named 'pyTMD'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_pytmd)
+    monkeypatch.setattr(split, "find_sentinel_files", lambda cfg: pytest.fail("fetched scenes"))
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["split"]["TIDE_SOURCE"] = "pytmd"
+    scene.write_text(yaml.safe_dump(cfg))
+    assert main(["split", "--config", str(scene)]) == 1
+    assert "requires the pyTMD package" in capsys.readouterr().err
+    assert not (scene.parent / "Data").exists()

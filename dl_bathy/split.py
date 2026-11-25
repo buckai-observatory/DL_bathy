@@ -199,6 +199,41 @@ def get_bbox_from_transform(transform, rows, cols):
 # TIDAL CORRECTION
 # =============================================================================
 
+def _import_pytmd():
+    try:
+        import pyTMD
+    except ImportError as exc:
+        raise ImportError(
+            "TIDE_SOURCE='pytmd' requires the pyTMD package. In a clone of DL_bathy "
+            "run `pip install -e \".[tide]\"`, or install from GitHub with "
+            "`pip install \"dl-bathy[tide] @ git+https://github.com/buckai-observatory/DL_bathy\"`. Alternatively set TIDE_SOURCE='custom' "
+            "(bring-your-own tide grids) or 'none' (skip tidal correction).") from exc
+    return pyTMD
+
+
+def check_tide_model(model_name="EOT20", directory=None):
+    """Check that pyTMD can find the tide model's files, before any scene is fetched.
+
+    Raises ImportError if pyTMD is missing and FileNotFoundError, with the
+    folder searched and how to get the files, if the model files are missing.
+    *directory* None means pyTMD's default cache directory.
+    """
+    pyTMD = _import_pytmd()
+    try:
+        # Only locates the files; nothing is read.
+        pyTMD.io.model(directory).from_database(model_name)
+    except FileNotFoundError as exc:
+        missing = str(exc.args[0]) if exc.args else str(directory)
+        raise FileNotFoundError(
+            f"TIDE_SOURCE is 'pytmd' but the {model_name} tide model files were not found "
+            f"(missing: {missing}). Download EOT20 from SEANOE "
+            "(https://doi.org/10.17882/79489), unpack it as <directory>/EOT20/ocean_tides/*.nc.gz "
+            "and set TIDE_MODEL_DIRECTORY to <directory> (or leave it null to use pyTMD's "
+            "default cache); see 'Tide model data' in the README. To run without a tide model, "
+            "set TIDE_SOURCE: none (no tide correction) or TIDE_SOURCE: custom (your own tide "
+            "grids) in the split section of your config.") from exc
+
+
 def sample_tide_pytmd(lons, lats, acq_datetime, model_name="EOT20", directory=None):
     """
     Predict ocean tide height (m) at a set of points and a single moment in
@@ -217,14 +252,7 @@ def sample_tide_pytmd(lons, lats, acq_datetime, model_name="EOT20", directory=No
     -------
     np.ndarray  Tide heights in metres, same shape as lons/lats.
     """
-    try:
-        import pyTMD
-    except ImportError as exc:
-        raise ImportError(
-            "TIDE_SOURCE='pytmd' requires the pyTMD package. In a clone of DL_bathy "
-            "run `pip install -e \".[tide]\"`, or install from GitHub with "
-            "`pip install \"dl-bathy[tide] @ git+https://github.com/buckai-observatory/DL_bathy\"`. Alternatively set TIDE_SOURCE='custom' "
-            "(bring-your-own tide grids) or 'none' (skip tidal correction).") from exc
+    pyTMD = _import_pytmd()
 
     delta_time = np.full(lons.shape, np.datetime64(acq_datetime), dtype="datetime64[ns]")
     tide = pyTMD.compute.tide_elevations(
@@ -592,6 +620,9 @@ def run(cfg):
             f"lidar_file not found: {cfg['lidar_file']}. Set lidar_file in the "
             "split section of your config (relative to the config file); "
             "`sdb init-config` writes an example.")
+    if cfg["TIDE_SOURCE"] == "pytmd":
+        # Before fetching scenes or creating folders (issue #77).
+        check_tide_model(cfg["TIDE_MODEL_NAME"], cfg["TIDE_MODEL_DIRECTORY"])
     os.makedirs(LiDAR_Model, exist_ok=True)
 
     print(f"Patch size    : {patch_size}")
