@@ -139,8 +139,9 @@ for every encoder, because the models were not trained beyond 20 m (see
 
 ## How to use
 
-Minimal example (needs `pip install huggingface_hub geoai-datacubes` and
-this repository on the Python path):
+Minimal example (install with
+`pip install "dl-bathy[inference,fetch] @ git+https://github.com/buckai-observatory/DL_bathy"`,
+or `pip install -e ".[inference,fetch]"` in a clone of the repository):
 
 ```python
 from inference import predict_from_geoai_datacubes

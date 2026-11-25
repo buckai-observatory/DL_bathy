@@ -86,9 +86,8 @@ to date on `main`:
   For DL_bathy, this includes changes to the on-disk patch band layout
   (bands 1–12 = S2 reflectance, band 13 = LiDAR depth, band 14 =
   validity mask), changes to the pretrained-weights loading contract
-  (`inference.load_model` signature), or changes to the CLI-level
-  parameters expected in the `USER CONFIGURATION` blocks at the top of
-  `step1_splitting.py` and `step2_train_test.py`.
+  (`inference.load_model` signature), or changes to the `sdb` command
+  line or the YAML config keys (`sdb init-config`).
 - **MINOR** (`v0.1.0` → `v0.2.0`): new features, new encoder options,
   new loss functions, new evaluation metrics — anything that adds
   capability without breaking existing callers.

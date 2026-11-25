@@ -302,6 +302,30 @@ def test_predict_from_geoai_datacubes_water_only_false_keeps_all(fake_fetch):
     assert np.isfinite(depths).all()
 
 
+
+def test_predict_from_geoai_datacubes_ignores_scenes_from_earlier_calls(fake_fetch, tmp_path):
+    # A scene folder left in save_folder by an earlier call (here one that
+    # sorts after the new scene) must not be used for this call.
+    import os
+    import rasterio
+    from rasterio.transform import from_origin
+    old = tmp_path / "s2" / "Sentinel-2_2099-01-01_S2B_old"
+    old.mkdir(parents=True)
+    with rasterio.open(old / "Sentinel-2_full_size.tiff", "w", driver="GTiff", width=4, height=4,
+                       count=13, dtype="float32", crs="EPSG:32755",
+                       transform=from_origin(0, 0, 10, 10)) as dst:
+        dst.write(np.zeros((13, 4, 4), "float32"))
+    first = []
+    for _ in range(2):   # a second call does not pick up the first call's scene either
+        depths, meta = inference.predict_from_geoai_datacubes(
+            [0, 0, 1, 1], ("2020-06-01", "2020-09-30"), model=_tiny_model(), save_folder="s2")
+        assert meta["scene_id"] == "Sentinel-2_2020-08-19_S2A_test"
+        assert depths.shape == (20, 24)
+        run_folder = os.path.dirname(os.path.dirname(meta["scene_path"]))
+        assert os.path.basename(run_folder).startswith("fetch-")
+        assert run_folder not in first
+        first.append(run_folder)
+
 def test_default_model_is_the_resnet50_checkpoint():
     # The default follows Hsu & Moortgat (2026), Table 2: ResNet-50 had the
     # lowest within-region test RMSE. Encoder and checkpoint must match.

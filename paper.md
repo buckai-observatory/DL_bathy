@@ -39,7 +39,7 @@ AOI and time window via the `geoai-datacubes` package
 scenes), derives cloud and non-water masks from the L2A Scene
 Classification Layer (SCL), applies tidal correction via the EOT20 global
 ocean tide model [@hartdavis2021eot20] using the `pyTMD` package
-[@sutterley2024pytmd] (or a user-supplied tide grid), and produces spatially-aware
+[@sutterley2025pytmd] (or a user-supplied tide grid), and produces spatially-aware
 train/validation/test splits with optional balancing and augmentation.
 Step 2 (`sdb train`) trains a DeepLabV3+
 segmentation model [@chen2018deeplabv3plus] on these patches, with a choice

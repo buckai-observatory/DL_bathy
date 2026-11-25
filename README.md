@@ -73,6 +73,9 @@ Two ways to use this repository:
 
 ### Inference-only quickstart
 
+Install with `pip install -e ".[inference,fetch]"` in a clone of this
+repository, or `pip install "dl-bathy[inference,fetch] @ git+https://github.com/buckai-observatory/DL_bathy"`.
+
 ```python
 from inference import predict_from_geoai_datacubes
 
@@ -129,10 +132,11 @@ huggingface_hub
 Install the package from a clone of this repository, choosing the extras you need:
 
 ```bash
-pip install -e ".[all]"        # everything: training, inference, geoai-datacubes fetch, pyTMD tides
-pip install -e ".[train]"      # `sdb split` + `sdb train` with local scenes and no tide model
-pip install -e ".[inference]"  # inference.py only
-pip install -e .               # `sdb split` only (local scenes, custom or no tides)
+pip install -e ".[all]"              # everything: training, inference, geoai-datacubes fetch, pyTMD tides
+pip install -e ".[train]"            # `sdb split` + `sdb train` with local scenes and no tide model
+pip install -e ".[inference,fetch]"  # inference.py, fetching Sentinel-2 for you (the quickstart above)
+pip install -e ".[inference]"        # inference.py on Sentinel-2 imagery you already have
+pip install -e .                     # `sdb split` only (local scenes, custom or no tides)
 ```
 
 Extras: `train` (PyTorch, segmentation-models-pytorch), `inference` (adds

@@ -13,7 +13,7 @@ requests are triaged in batches rather than within hours.
 
 ## 1. Seeking support / asking questions
 
-Open a **GitHub Discussion** or **Issue** on the repository:
+Open an **Issue** on the repository:
 
 * <https://github.com/buckai-observatory/DL_bathy/issues>
 
@@ -42,8 +42,8 @@ Please give us enough information to reproduce the problem:
   operating system.
 * **What you ran** — `sdb split` or `sdb train` (or `inference.py`), plus
   the relevant entries from your YAML config file.
-* **What happened** — the full traceback, plus the relevant lines from
-  `console_output_step1.log` / `console_output_step2.log`.
+* **What happened** — the full traceback, plus, for `sdb train`, the
+  relevant lines from `console_output_step2.log` in the output folder.
 * **What you expected** — one or two sentences is enough.
 
 ### What to include in a feature request
@@ -63,12 +63,13 @@ Pull requests are welcome, including from first-time contributors.
 git clone https://github.com/buckai-observatory/DL_bathy.git
 cd DL_bathy
 
-pip install -r requirements.txt
+pip install -e ".[train,dev]"
 ```
 
-To run the tests, `pip install -r requirements-test.txt` (the same as
-`pip install -e ".[train,dev]"`) is enough. Only touching `inference.py`?
-`requirements-inference.txt` is a lighter, GDAL-free subset — see the
+This installs the `sdb` command and everything the test suite needs
+(`pip install -r requirements-test.txt` does the same). Use `".[all,dev]"`
+to work on geoai-datacubes fetching or pyTMD tides as well. Only touching
+`inference.py`? `requirements-inference.txt` is a lighter subset — see the
 README's Requirements section.
 
 Sentinel-2 imagery is fetched at run time via
@@ -83,15 +84,16 @@ to avoid that dependency entirely.
 
 ### Pull request checklist
 
-* Keep the `USER CONFIGURATION` block pattern — don't hardcode paths or
-  parameters elsewhere in the script.
+* Keep settings in the YAML config (`sdb init-config` writes the
+  defaults) — don't hardcode paths or parameters in the code.
 * If you change patch-band ordering, output filenames, or config defaults,
   update the corresponding section of `README.md` in the same PR.
 * Describe what you tested the change against (even a small local run) in
-  the PR description — CI (`.github/workflows/tests.yml`) only covers the
-  `losses.py` unit tests, not the full pipeline end-to-end (network
-  fetches + tide model data), so PR descriptions are the main record of
-  what was verified.
+  the PR description — CI (`.github/workflows/tests.yml`) runs the unit
+  tests and a small synthetic `sdb split` / `sdb train`, but not the
+  network-dependent path (Sentinel-2 fetches, tide model data, the released
+  weights), so PR descriptions are the main record of what was verified
+  there.
 
 ---
 
