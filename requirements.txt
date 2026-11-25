@@ -1,5 +1,5 @@
 # Full pipeline: step1_splitting.py + step2_train_test.py + inference.py +
-# losses.py. Installs GDAL/rasterio and the full ML stack (~2+ GB).
+# losses.py. Installs rasterio (which ships its own GDAL) and the full ML stack (~2+ GB).
 #
 # Only running the test suite or just inference.py? Lighter options:
 #   pip install -r requirements-test.txt        (test suite: the [train,dev] extras)
@@ -10,7 +10,6 @@ matplotlib
 scipy
 scikit-image
 rasterio
-gdal
 geoai-datacubes
 torch
 torchvision

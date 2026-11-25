@@ -94,7 +94,7 @@ out-of-scope cautions, and evaluation metrics.
 
 ```
 numpy pandas matplotlib scipy scikit-image
-rasterio gdal
+rasterio
 geoai-datacubes
 torch torchvision
 segmentation-models-pytorch
