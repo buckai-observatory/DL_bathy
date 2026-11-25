@@ -249,3 +249,17 @@ def test_cloud_counts_keep_their_dates_when_an_earlier_scene_fails(scene):
     assert main(["split", "--config", str(scene)]) == 0
     counts = (scene.parent / "Data" / "cloud_removal_counts.csv").read_text().splitlines()
     assert counts == ["Date,Non_water_pixels_masked", "20230501,400"]
+
+
+def test_split_overlays_colour_every_split_including_test(scene, monkeypatch):
+    # Issue #38: the unbalanced overlay had no colour map for 'test', so
+    # test patches were not drawn.
+    import dl_bathy.split as split
+    calls = []
+    monkeypatch.setattr(split, "_split_overlay",
+                        lambda lidar, metas, mask, cmaps, title, out_path, dpi: calls.append((metas, cmaps, title)))
+    assert main(["split", "--config", str(scene)]) == 0
+    assert calls
+    for metas, cmaps, title in calls:
+        assert set(cmaps) == set(metas) == {"train", "val", "test"}
+        assert "Test" in title

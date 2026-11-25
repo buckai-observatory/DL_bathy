@@ -175,3 +175,47 @@ def test_binary_metrics_unchanged_when_both_classes_are_present():
     # A defined zero stays zero: deep pixels exist but none is predicted deep.
     zero = calculate_binary_metrics(np.array([-5.0, -1.0]), np.array([-1.0, -5.0]), threshold=3)
     assert zero["Precision"] == 0 and zero["Recall"] == 0
+
+
+# --- Small clean-ups (issue #38) ---------------------------------------------
+
+def test_load_model_returns_no_unused_grad_scaler(recwarn):
+    from dl_bathy.train import load_model
+    out = load_model("resnet50", torch.device("cpu"), lr=1e-3, reduce_lr_patience=1,
+                     output_activation=None, encoder_weights=None)
+    assert len(out) == 3                      # model, optimizer, scheduler
+    assert not [w for w in recwarn if "GradScaler" in str(w.message)]
+
+
+def test_dataset_raises_for_unreadable_patch(scene, tmp_path):
+    bad = tmp_path / "broken.tif"
+    bad.write_bytes(b"not a tif")
+    with pytest.raises(RuntimeError, match="broken.tif"):
+        BathyDataset([str(bad)], load_config(scene, "train"))[0]
+
+
+def test_filter_valid_patches_reports_unreadable_files(scene, tmp_path, capsys):
+    from dl_bathy.train import filter_valid_patches
+    main(["split", "--config", str(scene)])
+    good = sorted(str(f) for f in (scene.parent / "Data" / "train").glob("*.tif"))
+    bad = tmp_path / "broken.tif"
+    bad.write_bytes(b"not a tif")
+    capsys.readouterr()
+    assert filter_valid_patches(good + [str(bad)], 0.0) == good
+    assert "Skipped 1 unreadable patch file(s)" in capsys.readouterr().out
+    assert filter_valid_patches(good, 0.0) == good
+    assert "unreadable" not in capsys.readouterr().out
+
+
+def test_dataloaders_pin_memory_only_on_cuda(scene, monkeypatch):
+    import dl_bathy.train as train
+    pinned = []
+
+    def recording_loader(*args, **kwargs):
+        pinned.append(kwargs["pin_memory"])
+        return torch.utils.data.DataLoader(*args, **kwargs)
+
+    monkeypatch.setattr(train, "DataLoader", recording_loader)
+    main(["split", "--config", str(scene)])
+    assert main(["train", "--config", str(scene)]) == 0
+    assert pinned and all(p == torch.cuda.is_available() for p in pinned)

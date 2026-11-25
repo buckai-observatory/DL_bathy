@@ -4,9 +4,9 @@
 losses.py
 =========
 Masked, depth-aware loss functions for satellite-derived bathymetry (SDB)
-training. Extracted from step2_train_test.py so they can be unit-tested
-without importing the heavier GDAL / rasterio / GEE dependencies used
-elsewhere in the pipeline.
+training. Extracted from the training code (dl_bathy/train.py) so they can be
+unit-tested without importing the heavier rasterio / geoai-datacubes
+dependencies used elsewhere in the pipeline.
 
 Each function takes a prediction tensor, a target tensor, and a boolean
 (or 0/1) validity mask of the same shape, and returns a tuple of

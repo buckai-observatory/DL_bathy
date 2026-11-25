@@ -185,7 +185,7 @@ def load_model(Model_mode, device, lr=1e-4, reduce_lr_patience=5, output_activat
 
     Returns
     -------
-    model, optimizer, scheduler, scaler
+    model, optimizer, scheduler
     """
     mode_map = {
         "efficientnet-b4":       "efficientnet-b4",
@@ -216,8 +216,7 @@ def load_model(Model_mode, device, lr=1e-4, reduce_lr_patience=5, output_activat
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=reduce_lr_patience)
-    scaler    = torch.cuda.amp.GradScaler(enabled=True)
-    return model, optimizer, scheduler, scaler
+    return model, optimizer, scheduler
 
 # =============================================================================
 # DATA HELPERS
@@ -242,6 +241,7 @@ def filter_valid_patches(file_list, min_valid_ratio=0.1):
     (depth) for files without a mask band.
     """
     valid_files = []
+    unreadable  = 0
     print(f"Filtering {len(file_list)} patches (min_valid_ratio={min_valid_ratio})...")
     for f in file_list:
         try:
@@ -255,8 +255,10 @@ def filter_valid_patches(file_list, min_valid_ratio=0.1):
                 if valid_pixels / band.size >= min_valid_ratio:
                     valid_files.append(f)
         except Exception:
-            pass  # Skip corrupt/unreadable files silently
+            unreadable += 1  # Skip corrupt/unreadable files, but report how many
     print(f"Retained {len(valid_files)} / {len(file_list)} patches.")
+    if unreadable:
+        print(f"[WARN] Skipped {unreadable} unreadable patch file(s).")
     return valid_files
 
 
@@ -337,7 +339,7 @@ class BathyDataset(Dataset):
       mask_tensor : (1, H, W)  float32 – 1 for pixels used in loss, 0 otherwise
     """
 
-    def __init__(self, file_list, params, is_train=False):
+    def __init__(self, file_list, params):
         self.file_list       = file_list
         self.params          = params
         self.depth_threshold = abs(params["depth_threshold"])
@@ -362,9 +364,7 @@ class BathyDataset(Dataset):
         try:
             X, y, mask, _ = read_patch_tif(file_path)
         except Exception as e:
-            print(f"[ERROR] Cannot read {file_path}: {e}. Returning zeros.")
-            H, W = 256, 256
-            return torch.zeros(12, H, W), torch.zeros(1, H, W), torch.zeros(1, H, W)
+            raise RuntimeError(f"Cannot read patch {file_path}: {e}") from e
 
         # Exclude pixels outside the target depth range. `condition` marks
         # pixels to EXCLUDE, so 'shallow' (train on |y| < threshold) must
@@ -383,7 +383,7 @@ class BathyDataset(Dataset):
             for b in range(X.shape[0]):
                 rng    = self.bmaxs[b] - self.bmins[b] + 1e-8
                 X[b]  = (X[b] - self.bmins[b]) / rng
-        # Note: "Log_band" is pre-applied in step1_splitting.py; no action needed here.
+        # Note: "Log_band" is pre-applied by `sdb split` (dl_bathy/split.py); no action needed here.
 
         # Replace NaN/Inf with 0 before tensor conversion (mask ensures they are ignored in loss)
         X      = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
@@ -520,16 +520,17 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
     g = torch.Generator()
     g.manual_seed(seed)
 
-    train_ds     = BathyDataset(train_files, params, is_train=True)
-    val_ds       = BathyDataset(val_files,   params, is_train=False)
-    train_loader = DataLoader(train_ds, batch_size=params["batch_size"], shuffle=True,  num_workers=params["num_workers"], generator=g, pin_memory=True, drop_last=True)
-    val_loader   = DataLoader(val_ds,   batch_size=params["batch_size"], shuffle=False, num_workers=params["num_workers"], pin_memory=True)
+    train_ds     = BathyDataset(train_files, params)
+    val_ds       = BathyDataset(val_files,   params)
+    pin_memory   = device.type == "cuda"  # pinning only helps (and only works without a warning) on CUDA
+    train_loader = DataLoader(train_ds, batch_size=params["batch_size"], shuffle=True,  num_workers=params["num_workers"], generator=g, pin_memory=pin_memory, drop_last=True)
+    val_loader   = DataLoader(val_ds,   batch_size=params["batch_size"], shuffle=False, num_workers=params["num_workers"], pin_memory=pin_memory)
     print("DataLoaders ready.")
 
     # -------------------------------------------------------------------------
     # 4. Model, optimiser, scheduler
     # -------------------------------------------------------------------------
-    model, optimizer, scheduler, scaler = load_model(
+    model, optimizer, scheduler = load_model(
         params["Model_mode"], device,
         lr=params["lr"],
         reduce_lr_patience=params["reduce_lr_patience"],
