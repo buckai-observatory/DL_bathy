@@ -265,3 +265,28 @@ def test_sdb_train_logs_rpe_without_near_zero_depths(scene, monkeypatch):
     main(["split", "--config", str(scene)])
     assert main(["train", "--config", str(scene)]) == 0
     assert train.RPE_MIN_DEPTH == 0.01 and set(seen) == {0.01}
+
+
+# --- Issue #78 ----------------------------------------------------------------
+
+@pytest.mark.parametrize("weights, pretrained", [("imagenet", True), (None, False)])
+def test_convnext_encoder_weights_load_without_smp_warning(monkeypatch, recwarn, weights, pretrained):
+    # The ConvNeXt default (encoder_weights: imagenet) made smp warn that
+    # timm universal encoders want True. The encoder must still be pretrained
+    # exactly when weights are requested. timm is asked for a small model with
+    # no download, so the test stays fast and offline.
+    import timm
+    from dl_bathy.train import load_model
+    requested = []
+    real_create = timm.create_model
+
+    def small_offline_model(name, pretrained=False, **kwargs):
+        requested.append((name, pretrained))
+        return real_create("resnet18", pretrained=False, **kwargs)
+
+    monkeypatch.setattr(timm, "create_model", small_offline_model)
+    load_model("tu-convnext_large", torch.device("cpu"), encoder_weights=weights)
+    # smp may build the model more than once (e.g. to read its config first).
+    assert {name for name, _ in requested} == {"convnext_large"}
+    assert any(p for _, p in requested) == pretrained
+    assert not [w for w in recwarn if "encoder_weights" in str(w.message)]

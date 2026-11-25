@@ -3,5 +3,5 @@
 *.err
 slurm-*
 
-# Allow the JSON summaries written by _run_predict.py.
-# (No exclusion -- *.json is tracked.)
+# JSON summaries written by _run_predict.py record local paths; keep them local too.
+*.json

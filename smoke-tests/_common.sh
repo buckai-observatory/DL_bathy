@@ -24,8 +24,8 @@ cd "$REPO_ROOT"
 
 # Big outputs (fetched scenes, prediction GeoTIFFs) go to OUTDIR (default
 # outside the repo so they never land in git by accident). Logs (small
-# JSON summaries) go inside the repo under smoke-tests/logs/ so the run
-# history can be committed.
+# JSON summaries) go inside the repo under smoke-tests/logs/, where git
+# ignores them (they record local paths).
 export OUTDIR="${OUTDIR:-/tmp/dl_bathy_smoke}"
 export LOGDIR="$REPO_ROOT/smoke-tests/logs"
 mkdir -p "$OUTDIR" "$LOGDIR"

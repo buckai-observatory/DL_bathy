@@ -214,6 +214,12 @@ def load_model(Model_mode, device, lr=1e-4, reduce_lr_patience=5, output_activat
     if encoder is None:
         raise ValueError(f"Unknown Model_mode: '{Model_mode}'")
 
+    if encoder.startswith("tu-") and encoder_weights is not None and not isinstance(encoder_weights, bool):
+        # smp wants True (not "imagenet") for timm universal encoders and warns
+        # otherwise (issue #78). It loads the same pretrained weights either way:
+        # the timm encoder is pretrained whenever encoder_weights is not None.
+        encoder_weights = True
+
     print(f"Initialising DeepLabV3+ with encoder: {encoder}")
     model = smp.DeepLabV3Plus(
         encoder_name         = encoder,

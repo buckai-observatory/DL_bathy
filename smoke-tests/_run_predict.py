@@ -4,7 +4,7 @@ demo AOI, optionally score it against Ground_Truth.zip, and write a JSON log.
 Reads three env vars set by _common.sh:
 
     OUTDIR        scratch dir for fetched scenes (big; usually /tmp)
-    LOGDIR        small JSON log dir (committed to git)
+    LOGDIR        small JSON log dir (ignored by git; holds local paths)
     SCRIPT_NAME   id used for the log filename
 
 This is the scripted, non-interactive equivalent of running
@@ -17,7 +17,8 @@ is present) compare against the public ground truth. Not run in CI
 
 Usage:
     python smoke-tests/_run_predict.py
-    python smoke-tests/_run_predict.py --repo-id org/other-weights --filename best_model.pth
+    python smoke-tests/_run_predict.py --repo-id org/other-weights --filename best_model.pth \
+        --encoder-name tu-convnext_large
 """
 from __future__ import annotations
 
@@ -76,13 +77,16 @@ def _score_against_ground_truth(depths: np.ndarray, meta: dict, outdir: str) -> 
     import rasterio
     from rasterio.warp import Resampling, reproject
 
-    extract_dir = os.path.join(outdir, "Ground_Truth")
+    # The zip already holds a Ground_Truth/ folder.
     with zipfile.ZipFile(gt_zip) as zf:
-        zf.extractall(extract_dir)
+        zf.extractall(outdir)
+    extract_dir = os.path.join(outdir, "Ground_Truth")
 
-    gt_candidates = sorted(glob.glob(os.path.join(extract_dir, "**", "*.tif"), recursive=True))
+    # Ground_Truth.zip holds train / val / test rasters; score against the
+    # test one, as the demo notebook does.
+    gt_candidates = sorted(glob.glob(os.path.join(extract_dir, "**", "*_test.tif"), recursive=True))
     if not gt_candidates:
-        return {"error": "Ground_Truth.zip contained no .tif"}
+        return {"error": "Ground_Truth.zip contained no *_test.tif"}
     gt_path = gt_candidates[0]
 
     with rasterio.open(gt_path) as src:
@@ -111,6 +115,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-id", default=None, help="Override inference.HF_DEFAULT_REPO_ID")
     parser.add_argument("--filename", default=None, help="Override inference.HF_DEFAULT_FILENAME")
+    parser.add_argument("--encoder-name", default=None,
+                        help="Encoder of the checkpoint (default inference.DEFAULT_ENCODER, resnet50); "
+                             "see the checkpoint table in the README")
     parser.add_argument("--aoi", nargs=4, type=float, default=DEFAULT_AOI, metavar=("LON_MIN", "LAT_MIN", "LON_MAX", "LAT_MAX"))
     parser.add_argument("--time-range", nargs=2, default=list(DEFAULT_TIME_RANGE), metavar=("START", "END"))
     parser.add_argument("--max-cloud-coverage", type=float, default=DEFAULT_MAX_CLOUD_COVERAGE)
@@ -138,6 +145,8 @@ def main() -> int:
             load_kwargs["repo_id"] = args.repo_id
         if args.filename:
             load_kwargs["filename"] = args.filename
+        if args.encoder_name:
+            load_kwargs["encoder_name"] = args.encoder_name
         model = inference.load_model(**load_kwargs) if load_kwargs else None
 
         depths, meta = inference.predict_from_geoai_datacubes(

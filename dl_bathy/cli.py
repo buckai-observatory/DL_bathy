@@ -40,7 +40,7 @@ def main(argv=None):
         from .split import NoPatchesError, run
         try:
             run(load_config(args.config, "split"))
-        except (NoPatchesError, FileNotFoundError) as e:
+        except (NoPatchesError, FileNotFoundError, ImportError) as e:
             print(f"sdb split: error: {e}", file=sys.stderr)
             return 1
     else:

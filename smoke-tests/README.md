@@ -35,16 +35,17 @@ sbatch smoke-tests/predict_demo_aoi.sh
 `_run_predict.py`, e.g. to point at a different checkpoint:
 
 ```bash
-bash smoke-tests/predict_demo_aoi.sh --repo-id org/other-weights --filename best_model.pth
+bash smoke-tests/predict_demo_aoi.sh --repo-id org/other-weights --filename best_model.pth \
+    --encoder-name tu-convnext_large
 ```
 
 ## Outputs
 
 - Large files (fetched scenes) land in `$OUTDIR` (default
   `/tmp/dl_bathy_smoke`) — never in git.
-- A small JSON summary per script lands in `smoke-tests/logs/*.json` and
-  **is** committed, so the run history (did this still work on this date,
-  against this weights revision?) is part of the repo.
+- A small JSON summary per script lands in `smoke-tests/logs/*.json`.
+  Git ignores it, because it records local paths; copy the numbers into
+  the release notes or an issue if you want to keep a run history.
 
 ## When to run these
 
