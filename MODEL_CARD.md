@@ -105,11 +105,37 @@ and are also the current `sdb` defaults.
 
 ## Evaluation
 
-TODO — from the release training run:
+The study-wide evaluation of these models, including transfer to other
+sites, is reported in [Hsu & Moortgat (2026)](https://doi.org/10.3390/rs18111768).
+TODO (Amy): optionally copy the paper's held-out test-set metrics here.
 
-- Held-out test set: RMSE (m), MAE (m), R², bias
-- Per-depth-bin performance (e.g. RMSE at 0–5 m, 5–10 m, 10–15 m, > 15 m)
-- Transfer performance on a geographically-held-out site, if measured
+**Public demo scene.** The table below scores all four released checkpoints
+against the public ground truth shipped with the repository, so anyone can
+reproduce it with `notebooks/dl_bathy_demo.ipynb` or the smoke test:
+
+- Scene: Sentinel-2A L2A, 19 August 2020 (tile 55LBE), fetched with
+  `geoai-datacubes` over the demo AOI `[145.14, -14.56, 145.66, -14.26]`
+  (Great Barrier Reef), search window 2020-06-01 – 2020-09-30, ≤ 20 % cloud.
+- Ground truth: `Great_Barrier_Reef_A_2020_30m_MSL_cog_depth_0_to_-30_T55LCE_test.tif`
+  from `Ground_Truth.zip`, resampled to the prediction grid.
+- Pixels scored: SCL water pixels where the ground truth is 0–20 m deep
+  (the training range), n = 487,316. Error = prediction − ground truth, with
+  depths negative below sea level, so a positive bias means the predictions
+  are too shallow.
+
+| Encoder | RMSE (m) | MAE (m) | Bias (m) | CPU inference time |
+|---|---|---|---|---|
+| `tu-convnext_large` (default) | 3.01 | 1.86 | +1.09 | 542 s |
+| `resnet50` | 2.49 | 1.74 | +1.03 | 77 s |
+| `resnet101` | 2.62 | 1.75 | +0.98 | 148 s |
+| `efficientnet-b4` | 4.07 | 2.67 | +2.26 | 219 s |
+
+Measured on 12 November 2026 with DL_bathy commit `2b0926a` on an Apple
+silicon Mac (CPU only; inference time covers the whole scene). Including
+ground truth deeper than 20 m (0–30 m, n = 756,444) raises RMSE to 13.7–15.1 m
+for every encoder, because the models were not trained beyond 20 m (see
+*Out-of-scope*). `efficientnet-b4` also predicts some pixels above sea level
+(up to +7.5 m).
 
 ## How to use
 
