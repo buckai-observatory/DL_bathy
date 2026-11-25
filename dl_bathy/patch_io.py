@@ -11,7 +11,7 @@ import os
 
 import numpy as np
 import rasterio
-from rasterio.transform import Affine
+from rasterio.windows import Window, transform as window_transform
 
 
 def save_patches_from_metadata(metadata_list, out_dir, base_transform, crs,
@@ -27,7 +27,7 @@ def save_patches_from_metadata(metadata_list, out_dir, base_transform, crs,
             M_patch = data['M']
 
         r0, c0, r1, c1  = meta['coords']
-        patch_transform = base_transform * Affine.translation(c0, r0)
+        patch_transform = window_transform(Window(c0, r0, c1 - c0, r1 - r0), base_transform)
         nbands          = X_patch.shape[0]
 
         out_path = os.path.join(out_dir, f"{prefix}_{idx:06d}.tif")

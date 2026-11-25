@@ -263,3 +263,41 @@ def test_split_overlays_colour_every_split_including_test(scene, monkeypatch):
     for metas, cmaps, title in calls:
         assert set(cmaps) == set(metas) == {"train", "val", "test"}
         assert "Test" in title
+
+
+# --- Issue #59 ----------------------------------------------------------------
+
+@pytest.mark.parametrize("train_ratio, val_ratio, expected", [
+    (1.0, 0.0, "train"), (0.0, 1.0, "val"), (0.0, 0.0, "test")])
+def test_assign_split_keeps_every_patch_when_one_split_is_used(train_ratio, val_ratio, expected):
+    # With a single split there is no train/test leakage to prevent, so no
+    # patch near a block edge may be buffered out (None).
+    coords = [(r, c, r + 64, c + 64) for r in range(0, 512, 32) for c in range(0, 512, 32)]
+    assert {assign_split(xy, "consistent_spatial", train_ratio, val_ratio) for xy in coords} == {expected}
+
+
+def test_assign_split_still_buffers_when_splits_are_mixed():
+    coords = [(r, c, r + 64, c + 64) for r in range(0, 512, 32) for c in range(0, 512, 32)]
+    assert None in {assign_split(xy, "consistent_spatial", 0.7, 0.15) for xy in coords}
+
+
+def test_mean_depth_of_a_patch_without_finite_labels_is_nan_without_warning(recwarn):
+    from dl_bathy.split import _mean_depth
+    y = np.full((4, 4), np.nan, dtype="float32")
+    assert np.isnan(_mean_depth(y, np.ones((4, 4))))
+    assert not [w for w in recwarn if "empty slice" in str(w.message)]
+    y[0, 0] = -3.0
+    assert _mean_depth(y, np.ones((4, 4))) == -3.0
+
+
+def test_patch_transform_matches_the_affine_composition(tmp_path):
+    from rasterio.transform import Affine
+    from dl_bathy.patch_io import save_patches_from_metadata
+    base = Affine(10.0, 0.0, 500000.0, 0.0, -10.0, 8400000.0)
+    patch = tmp_path / "p.npz"
+    np.savez_compressed(patch, X=np.zeros((12, 8, 8), "float32"),
+                        y=np.zeros((8, 8), "float32"), M=np.ones((8, 8), "float32"))
+    save_patches_from_metadata([{"path": str(patch), "coords": (16, 24, 24, 32)}], str(tmp_path / "out"),
+                               base, "EPSG:32755", "20200819", "scene.tif", "train")
+    with rasterio.open(next((tmp_path / "out").glob("*.tif"))) as src:
+        assert src.transform == Affine(10.0, 0.0, 500240.0, 0.0, -10.0, 8399840.0)

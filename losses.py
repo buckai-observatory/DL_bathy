@@ -39,9 +39,17 @@ def masked_sum_abs_and_count(pred, target, mask):
     return mae, n_valid
 
 
-def masked_sum_rpe_and_count(pred, target, mask, eps=1e-6):
-    """Sum of relative percentage errors over valid pixels."""
+def masked_sum_rpe_and_count(pred, target, mask, eps=1e-6, min_depth=0.0):
+    """Sum of relative percentage errors over valid pixels.
+
+    Pixels with ``|target| < min_depth`` are left out (their relative error is
+    unbounded near zero depth). The default, 0, keeps every valid pixel, as
+    the RPE training loss always has; the logged RPE metric uses 0.01 m, as in
+    Hsu & Moortgat (2026). The returned count is the number of pixels used.
+    """
     mask_bool = mask.bool()
+    if min_depth > 0:
+        mask_bool = mask_bool & (torch.abs(target) >= min_depth)
     n_valid   = mask_bool.sum()
     if n_valid == 0:
         return torch.tensor(0.0, device=pred.device), torch.tensor(0.0, device=pred.device)
