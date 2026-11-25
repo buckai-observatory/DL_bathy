@@ -1,7 +1,7 @@
 # Satellite-Derived Bathymetry (SDB) — Deep Learning Pipeline
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-BA0C2F.svg?style=flat-square)](LICENSE)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![tests](https://github.com/buckai-observatory/DL_bathy/actions/workflows/tests.yml/badge.svg)](https://github.com/buckai-observatory/DL_bathy/actions/workflows/tests.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21845182.svg)](https://doi.org/10.5281/zenodo.21845182)
 [![Documentation website](https://img.shields.io/badge/documentation-website-0A7BBB.svg?style=flat-square)](https://buckai-observatory.org/DL_bathy/)
@@ -53,7 +53,8 @@ BibTeX:
 Two ways to use this repository:
 
 - **Inference-only path** (no training, no ground truth needed): use
-  the pretrained weights hosted on the Hugging Face Hub to run
+  the pretrained weights hosted on the Hugging Face Hub
+  ([`BuckAIObservatory/dl-bathy-weights`](https://huggingface.co/BuckAIObservatory/dl-bathy-weights)) to run
   bathymetry prediction on any Sentinel-2 tile via the top-level
   `inference.py` module. The Colab-ready notebook
   [`notebooks/dl_bathy_demo.ipynb`](notebooks/dl_bathy_demo.ipynb) walks
@@ -66,7 +67,7 @@ Two ways to use this repository:
 
 | Step | Command / module | Purpose |
 |------|--------|---------|
-| Inference | `inference.py` | Load pretrained weights from HF Hub, predict depths on Sentinel-2 imagery |
+| Inference | `inference.py` | Load pretrained weights from the [HF Hub](https://huggingface.co/BuckAIObservatory/dl-bathy-weights), predict depths on Sentinel-2 imagery |
 | 1 | `sdb split` | Prepare, align, split, balance, and (optionally) augment training patches |
 | 2 | `sdb train` | Train a DeepLabV3+ model, evaluate on the test set, and save predictions |
 
@@ -367,8 +368,8 @@ PyTorch for `sdb split`.
 
 ### Smoke tests
 
-`tests/` covers `losses.py` in CI; `smoke-tests/` covers the
-network-dependent, end-to-end inference path (not run in CI, since it
+`tests/` covers the code paths listed above in CI, on synthetic data;
+`smoke-tests/` covers the network-dependent, end-to-end inference path (not run in CI, since it
 needs live Sentinel-2 fetches and downloads real model weights) — see
 [`smoke-tests/README.md`](smoke-tests/README.md).
 
