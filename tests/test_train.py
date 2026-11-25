@@ -219,3 +219,19 @@ def test_dataloaders_pin_memory_only_on_cuda(scene, monkeypatch):
     main(["split", "--config", str(scene)])
     assert main(["train", "--config", str(scene)]) == 0
     assert pinned and all(p == torch.cuda.is_available() for p in pinned)
+
+
+def test_every_load_model_call_unpacks_what_it_returns():
+    # The multi-GPU branch of the test-set evaluation cannot run in CI (no
+    # GPUs), so check statically that each call unpacks the three values
+    # load_model returns (model, optimizer, scheduler) (#38).
+    import ast
+    import inspect
+    import dl_bathy.train as train
+    calls = [node for node in ast.walk(ast.parse(inspect.getsource(train)))
+             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+             and getattr(node.value.func, "id", None) == "load_model"]
+    assert len(calls) == 2                    # training model, multi-GPU test model
+    for node in calls:
+        target = node.targets[0]
+        assert isinstance(target, ast.Tuple) and len(target.elts) == 3, ast.unparse(target)
