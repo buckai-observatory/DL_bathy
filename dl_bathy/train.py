@@ -164,6 +164,18 @@ def build_deeplab_head(n_in=256, n_out=1, activation="linear"):
     return nn.Sequential(*layers)
 
 
+def default_num_workers():
+    """DataLoader workers when ``num_workers`` is null: SLURM_CPUS_PER_TASK if
+    set, otherwise the CPU count capped at 8 (asking for more workers than
+    cores only makes PyTorch warn)."""
+    return int(os.environ.get("SLURM_CPUS_PER_TASK", min(os.cpu_count() or 1, 8)))
+
+
+#: Depths shallower than this (m) are left out of the logged RPE metric, whose
+#: relative error is unbounded near zero depth (Hsu & Moortgat 2026: RPE for Z > 0.01 m).
+RPE_MIN_DEPTH = 0.01
+
+
 def load_model(Model_mode, device, lr=1e-4, reduce_lr_patience=5, output_activation=None,
                encoder_weights="imagenet"):
     """
@@ -423,8 +435,7 @@ def run(cfg):
 
     num_workers = cfg["num_workers"]
     if num_workers is None:
-        # Defaults to SLURM_CPUS_PER_TASK if set, otherwise 16
-        num_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", 16))
+        num_workers = default_num_workers()
 
     skip = {"TrainingDataPath", "base_dir", "seed", "dpi", "num_workers"}
     params = {k: v for k, v in cfg.items() if k not in skip}
@@ -561,7 +572,7 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
         for epoch in range(1, params["num_epochs"] + 1):
             model.train()
             sse_total = mae_total = rpe_total = swf_wse_total = 0.0
-            valid_pixels          = 0
+            valid_pixels = rpe_pixels = 0
             train_skipped_batches = 0
 
             for xb, yb, mb in train_loader:
@@ -599,12 +610,13 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
                 # --- Accumulate all metrics for logging ---
                 sse_b,     n_b = masked_sum_sse_and_count(out, yb, mb)
                 mae_b,     _   = masked_sum_abs_and_count(out, yb, mb)
-                rpe_b,     _   = masked_sum_rpe_and_count(out, yb, mb)
+                rpe_b,  rpe_n  = masked_sum_rpe_and_count(out, yb, mb, min_depth=RPE_MIN_DEPTH)
                 swf_wse_b, _   = masked_sum_swf_and_count(out, yb, mb, params["SWF_beta"], params["SWF_Z0"])
 
                 sse_total     += sse_b.item()
                 mae_total     += mae_b.item()
                 rpe_total     += rpe_b.item()
+                rpe_pixels    += rpe_n.item()
                 swf_wse_total += swf_wse_b.item()
                 valid_pixels  += n_b.item()
 
@@ -612,13 +624,13 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
             vp = valid_pixels
             train_rmse     = (sse_total     / vp) ** 0.5 if vp > 0 else float("nan")
             train_mae      = (mae_total     / vp)        if vp > 0 else float("nan")
-            train_rpe_avg  = (rpe_total     / vp) * 100  if vp > 0 else float("nan")
+            train_rpe_avg  = (rpe_total / rpe_pixels) * 100 if rpe_pixels > 0 else float("nan")
             train_swf_rmse = (swf_wse_total / vp) ** 0.5 if vp > 0 else float("nan")
 
             # --- Validation ---
             model.eval()
             val_sse = val_mae = val_rpe = val_swf_wse = 0.0
-            val_pix = val_skipped_batches = 0
+            val_pix = val_rpe_pix = val_skipped_batches = 0
 
             for xb, yb, mb in val_loader:
                 xb, yb, mb = xb.to(device), yb.to(device), mb.to(device)
@@ -632,7 +644,7 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
 
                 s, n   = masked_sum_sse_and_count(out, yb, mb)
                 m, _   = masked_sum_abs_and_count(out, yb, mb)
-                r, _   = masked_sum_rpe_and_count(out, yb, mb)
+                r, rn  = masked_sum_rpe_and_count(out, yb, mb, min_depth=RPE_MIN_DEPTH)
                 sw, _  = masked_sum_swf_and_count(out, yb, mb, params["SWF_beta"], params["SWF_Z0"])
 
                 if n.item() < 1e-6:
@@ -642,13 +654,14 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
                 val_sse     += s.item()
                 val_mae     += m.item()
                 val_rpe     += r.item()
+                val_rpe_pix += rn.item()
                 val_swf_wse += sw.item()
                 val_pix     += n.item()
 
             vp2 = val_pix
             val_rmse     = (val_sse     / vp2) ** 0.5 if vp2 > 0 else float("nan")
             val_mae_avg  = (val_mae     / vp2)        if vp2 > 0 else float("nan")
-            val_rpe_avg  = (val_rpe     / vp2) * 100  if vp2 > 0 else float("nan")
+            val_rpe_avg  = (val_rpe / val_rpe_pix) * 100 if val_rpe_pix > 0 else float("nan")
             val_swf_rmse = (val_swf_wse / vp2) ** 0.5 if vp2 > 0 else float("nan")
 
             current_lr = optimizer.param_groups[0]['lr']
