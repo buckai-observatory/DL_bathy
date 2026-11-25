@@ -62,6 +62,15 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #58** (README gaps for new users): the README explains how to split
+  the three rasters in `Ground_Truth.zip` into train / validation / test
+  patches, and which device training runs on. `sdb split` with a missing
+  `lidar_file` now exits with a one-line error before creating any folder.
+  The demo notebook uses the repository's `Ground_Truth.zip` when run from a
+  clone, scores against the `_test` raster explicitly, and the files it
+  writes in `notebooks/` are git-ignored. (Loading the other three released
+  checkpoints was documented with the ResNet-50 default change.)
+
 - **Issue #35**: `sdb split` exited with status 0 even when every scene
   failed, so the error only surfaced later as "No training patches found" in
   `sdb train`. It now prints a summary of found, failed and skipped scenes

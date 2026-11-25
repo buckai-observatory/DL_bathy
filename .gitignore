@@ -9,3 +9,7 @@ paper.pdf
 jats/
 # documentation website build (site/build_site.py)
 site/_build/
+# files the demo notebook writes when run from a clone (notebooks/)
+notebooks/Ground_Truth.zip
+notebooks/Ground_Truth/
+notebooks/s2_fetched/

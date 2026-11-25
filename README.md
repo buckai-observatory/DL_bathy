@@ -260,6 +260,36 @@ For L1C imagery, place scenes in `Dongsha_s2_img/` (setting `l1c_dir`) and set
 support the `DATA_SOURCE` modes above; it reads directly from
 `Dongsha_s2_img/`.
 
+#### Example: the public `Ground_Truth.zip`
+
+`Ground_Truth.zip` holds three rasters of the same Great Barrier Reef area,
+already divided into spatially separate training, validation and test zones
+(`..._T55LCE_train.tif`, `..._val.tif`, `..._test.tif`), as in the paper's
+spatially continuous splitting. `lidar_file` takes one raster, so run
+`sdb split` once per raster, each time sending all of its patches to one
+split, into the same `output_dir`:
+
+| Raster | `lidar_file` | `train_ratio` | `val_ratio` | Patches go to |
+|---|---|---|---|---|
+| train | `Ground_Truth/..._T55LCE_train.tif` | `1.0` | `0.0` | `Data/train/` |
+| validation | `Ground_Truth/..._T55LCE_val.tif` | `0.0` | `1.0` | `Data/valid/` |
+| test | `Ground_Truth/..._T55LCE_test.tif` | `0.0` | `0.0` | `Data/test/` |
+
+For example, with `unzip Ground_Truth.zip` next to three copies of the
+config that differ only in these lines:
+
+```bash
+sdb split --config split_train.yml
+sdb split --config split_val.yml
+sdb split --config split_test.yml
+sdb train --config split_train.yml   # the train section reads Data/ as a whole
+```
+
+Without the EOT20 tide files (see *Tide model data* above), add
+`TIDE_SOURCE: none` to the `split` section. With the defaults
+(`train_ratio: 1.0`, `val_ratio: 0.0`) a single run puts every patch in
+`train/` and leaves the test set empty.
+
 ---
 
 ## Usage
@@ -319,6 +349,11 @@ Each GeoTIFF patch contains **14 bands**:
 ```bash
 sdb train --config dl_bathy_config.yml
 ```
+
+Training runs on a CUDA GPU when one is available (all visible GPUs, see
+*Multi-GPU Training*), otherwise on Apple silicon's GPU (MPS), otherwise on
+the CPU. The device is chosen automatically and printed at the start of the
+log; there is no setting to force the CPU on a Mac with MPS.
 
 Key settings (`train` section):
 
