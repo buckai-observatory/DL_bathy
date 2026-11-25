@@ -47,6 +47,15 @@ the next tag is cut.
 
 ### Changed
 
+- **The default inference model is now ResNet-50** (`inference.DEFAULT_ENCODER =
+  "resnet50"`, `HF_DEFAULT_FILENAME = "resnet50/deeplabv3_bathy_final.pth"`),
+  following Hsu & Moortgat (2026): lowest within-region test RMSE (Table 2),
+  close to the best in cross-regional transfer (Table 4), about five times
+  smaller and seven times faster on CPU than ConvNeXt-Large. ConvNeXt-Large,
+  the previous default, loads with `load_model(filename="deeplabv3_bathy_final.pth",
+  encoder_name="tu-convnext_large")`. The README lists all four checkpoints.
+  The training default (`Model_mode`) is unchanged.
+
 - The model weights moved to the BuckAI Observatory organization on Hugging Face:
   `inference.HF_DEFAULT_REPO_ID` is now `BuckAIObservatory/dl-bathy-weights`
   (the old `Amy5133/dl-bathy-weights` name redirects).

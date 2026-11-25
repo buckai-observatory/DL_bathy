@@ -15,7 +15,7 @@
 - **Model type**: fully-convolutional segmentation network (regression head)
 - **Task**: per-pixel water depth estimation (metres) from Sentinel-2 L2A imagery
 - **Architecture**: [`smp.DeepLabV3Plus`](https://github.com/qubvel/segmentation_models.pytorch) with a 12-band input head, single-channel regression output, and an ImageNet-pretrained encoder
-- **Default encoder**: `tu-convnext_large` (ConvNeXt-Large, timm backend). Alternate encoders trained by the same pipeline: `efficientnet-b4`, `resnet50`, `resnet101`.
+- **Default encoder**: `resnet50` (ResNet-50). Alternate encoders trained by the same pipeline: `tu-convnext_large` (ConvNeXt-Large, timm backend; the default before v0.2.0), `resnet101`, `efficientnet-b4`. The default follows Hsu & Moortgat (2026): ResNet-50 had the lowest within-region test RMSE (Table 2) and is close to the best in cross-regional transfer (Table 4); ConvNeXt-Large (best at Cartier Reef) and ResNet-101 (best at Ashmore Reef) remain available.
 - **License**: MIT (matches the DL_bathy repository)
 
 ## Intended use
@@ -68,7 +68,7 @@ settings apart from the encoder. Values marked † are not recorded in
 (`step2_train_test.py`, first published in this repository in March 2026)
 and are also the current `sdb` defaults.
 
-- Encoder backbone: `tu-convnext_large`
+- Encoder backbone: `resnet50` (default), `resnet101`, `efficientnet-b4` or `tu-convnext_large`, one checkpoint each
 - Input channels: 12 (Sentinel-2 bands B01–B12)
 - Input normalisation: `log(band / 10000 + 1e-6)` of the L2A digital numbers
   (`Logcube: true`, `band_normalization: 10000`, `Epsilon: 1e-6`; each
@@ -95,9 +95,9 @@ and are also the current `sdb` defaults.
 
   | Encoder | Epochs run | Best validation loss |
   |---|---|---|
-  | `tu-convnext_large` (default) | 23 | 4.50 |
+  | `tu-convnext_large` | 23 | 4.50 |
   | `resnet101` | 33 | 3.23 |
-  | `resnet50` | 40 | 3.60 |
+  | `resnet50` (default) | 40 | 3.60 |
   | `efficientnet-b4` | 23 | 4.97 |
 
 - Hardware: one GPU (`gpu_count_used: 1`); GPU model TODO
@@ -125,8 +125,8 @@ reproduce it with `notebooks/dl_bathy_demo.ipynb` or the smoke test:
 
 | Encoder | RMSE (m) | MAE (m) | Bias (m) | CPU inference time |
 |---|---|---|---|---|
-| `tu-convnext_large` (default) | 3.01 | 1.86 | +1.09 | 542 s |
-| `resnet50` | 2.49 | 1.74 | +1.03 | 77 s |
+| `tu-convnext_large` | 3.01 | 1.86 | +1.09 | 542 s |
+| `resnet50` (default) | 2.49 | 1.74 | +1.03 | 77 s |
 | `resnet101` | 2.62 | 1.75 | +0.98 | 148 s |
 | `efficientnet-b4` | 4.07 | 2.67 | +2.26 | 219 s |
 
@@ -167,6 +167,10 @@ with rasterio.open("my_s2_scene.tif") as src:
     s2_bands = src.read()[:12].astype("float32")
 depths = predict_depth(model, s2_bands)
 ```
+
+To use another released checkpoint, pass its file and encoder, e.g.
+`load_model(filename="resnet101/deeplabv3_bathy_final.pth", encoder_name="resnet101")`;
+the README lists all four.
 
 See `notebooks/dl_bathy_demo.ipynb` in the repository for a Colab-ready
 end-to-end walkthrough on the public GBR subset.

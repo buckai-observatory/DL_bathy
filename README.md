@@ -83,6 +83,29 @@ depths, meta = predict_from_geoai_datacubes(
 # depths is a (H, W) numpy array of predicted depths in metres.
 ```
 
+The default model is the ResNet-50 checkpoint. The other three released
+checkpoints load by file name and encoder:
+
+```python
+from inference import load_model, predict_from_geoai_datacubes
+
+model = load_model(filename="resnet101/deeplabv3_bathy_final.pth",
+                   encoder_name="resnet101")   # see the table below
+depths, meta = predict_from_geoai_datacubes(aoi=..., time_range=..., model=model)
+```
+
+| Model | `filename` | `encoder_name` | Demo scene RMSE / MAE (0–20 m) |
+|---|---|---|---|
+| ResNet-50 (default) | `resnet50/deeplabv3_bathy_final.pth` | `resnet50` | 2.49 / 1.74 m |
+| ResNet-101 | `resnet101/deeplabv3_bathy_final.pth` | `resnet101` | 2.62 / 1.75 m |
+| ConvNeXt-Large | `deeplabv3_bathy_final.pth` | `tu-convnext_large` | 3.01 / 1.86 m |
+| EfficientNet-B4 | `efficientnet_b4/deeplabv3_bathy_final.pth` | `efficientnet-b4` | 4.07 / 2.67 m |
+
+Note the folder `efficientnet_b4` (underscore) versus the encoder name
+`efficientnet-b4` (hyphen). The default follows the paper's within-region
+results (Hsu & Moortgat, 2026, Table 2); ConvNeXt-Large was the default
+before v0.2.0.
+
 See [`MODEL_CARD.md`](MODEL_CARD.md) for a full description of the
 pretrained model — architecture, training data, intended use,
 out-of-scope cautions, and evaluation metrics.

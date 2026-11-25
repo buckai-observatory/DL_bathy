@@ -300,3 +300,10 @@ def test_predict_from_geoai_datacubes_water_only_false_keeps_all(fake_fetch):
     depths, _ = inference.predict_from_geoai_datacubes([0, 0, 1, 1], ("2020-06-01", "2020-09-30"),
                                                        model=_tiny_model(), save_folder="s2", water_only=False)
     assert np.isfinite(depths).all()
+
+
+def test_default_model_is_the_resnet50_checkpoint():
+    # The default follows Hsu & Moortgat (2026), Table 2: ResNet-50 had the
+    # lowest within-region test RMSE. Encoder and checkpoint must match.
+    assert inference.DEFAULT_ENCODER == "resnet50"
+    assert inference.HF_DEFAULT_FILENAME == "resnet50/deeplabv3_bathy_final.pth"
