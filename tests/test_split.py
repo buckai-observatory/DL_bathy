@@ -3,6 +3,7 @@ import random
 import numpy as np
 import pytest
 import rasterio
+import yaml
 
 from dl_bathy.cli import main
 from dl_bathy.patch_io import read_patch_tif
@@ -263,6 +264,17 @@ def test_split_overlays_colour_every_split_including_test(scene, monkeypatch):
     for metas, cmaps, title in calls:
         assert set(cmaps) == set(metas) == {"train", "val", "test"}
         assert "Test" in title
+
+
+def test_split_with_a_missing_lidar_file_fails_cleanly_before_creating_folders(scene, capsys):
+    # Issue #58: a missing reference raster created Data/ folders and then
+    # died with a raw RasterioIOError traceback.
+    cfg = yaml.safe_load(scene.read_text())
+    cfg["split"]["lidar_file"] = "does_not_exist.tif"
+    scene.write_text(yaml.safe_dump(cfg))
+    assert main(["split", "--config", str(scene)]) == 1
+    assert "lidar_file not found" in capsys.readouterr().err
+    assert not (scene.parent / "Data").exists()
 
 
 # --- Issue #59 ----------------------------------------------------------------

@@ -62,6 +62,14 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #58** (README gaps for new users): the README explains how to split
+  the three rasters in `Ground_Truth.zip` into train / validation / test
+  patches, and which device training runs on. `sdb split` with a missing
+  `lidar_file` now exits with a one-line error before creating any folder.
+  The demo notebook uses the repository's `Ground_Truth.zip` when run from a
+  clone, scores against the `_test` raster explicitly, and the files it
+  writes in `notebooks/` are git-ignored. (Loading the other three released
+  checkpoints was documented with the ResNet-50 default change.)
 - **Issue #59** (confusing output on a default CPU/Mac run): the logged RPE
   leaves out depths shallower than 0.01 m (as in the paper) instead of
   reporting tens of millions of percent; the RPE training loss is unchanged.

@@ -583,6 +583,12 @@ def run(cfg):
     Logcube      = cfg["Logcube"]
     LiDAR_Model  = cfg["output_dir"]
     dpi          = cfg["dpi"]
+    if not os.path.isfile(cfg["lidar_file"]):
+        # Check before creating any output folder (issue #58).
+        raise FileNotFoundError(
+            f"lidar_file not found: {cfg['lidar_file']}. Set lidar_file in the "
+            "split section of your config (relative to the config file); "
+            "`sdb init-config` writes an example.")
     os.makedirs(LiDAR_Model, exist_ok=True)
 
     print(f"Patch size    : {patch_size}")
