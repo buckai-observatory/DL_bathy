@@ -791,7 +791,7 @@ def _train(params, TrainingDataPath, LiDAR_Model, seed, dpi, startime):
         # Load best model (single-GPU wrapper for inference)
         state_dict = torch.load(os.path.join(LiDAR_Model, "best_model.pth"), map_location=device)
         if gpu_count > 1:
-            test_model, _, _, _ = load_model(
+            test_model, _, _ = load_model(
                 params["Model_mode"], torch.device("cuda:0"),
                 lr=params["lr"], reduce_lr_patience=params["reduce_lr_patience"],
                 output_activation=(None if params["output_activation"] == "none" else params["output_activation"]),
