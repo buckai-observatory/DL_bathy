@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio
-from rasterio.transform import Affine
+from rasterio.windows import Window, transform as window_transform
 from rasterio.warp import Resampling, reproject
 from rasterio.warp import transform as transform_coords
 from scipy.interpolate import griddata
@@ -375,6 +375,13 @@ def extract_patches_no_nans_gen(cube, lidar, valid_mask, patch_size=128, stride=
                    (r, c, r + patch_size, c + patch_size))
 
 
+def _mean_depth(y, M):
+    """Mean label depth over a patch's valid pixels; NaN (without numpy's
+    empty-slice warning) when none of them has a finite depth."""
+    vals = y[(M > 0) & np.isfinite(y)]
+    return float(vals.mean()) if vals.size else float("nan")
+
+
 def assign_split(coord, split_strategy, train_ratio, val_ratio, rng=random):
     """
     Assign a patch to 'train', 'val', 'test', or None (buffered out).
@@ -400,6 +407,13 @@ def assign_split(coord, split_strategy, train_ratio, val_ratio, rng=random):
         rv = rng.random()
         return 'train' if rv < train_thresh else ('val' if rv < val_thresh else 'test')
     if split_strategy == 'consistent_spatial':
+        # Everything goes to one split: no leakage to prevent, keep every patch.
+        if train_thresh >= 1:
+            return 'train'
+        if train_thresh <= 0 and val_thresh >= 1:
+            return 'val'
+        if val_thresh <= 0:
+            return 'test'
         r, c, r1, _ = coord
         patch_size = max(r1 - r, 1)  # guard against degenerate/placeholder coords
         block      = 2 * patch_size
@@ -724,7 +738,7 @@ def run(cfg):
             cube_clipped       = cube[:, min_r:max_r + 1, min_c:max_c + 1]
             lidar_clipped      = resampled_lidar[min_r:max_r + 1, min_c:max_c + 1]
             valid_mask_clipped = valid_pixel_mask[min_r:max_r + 1, min_c:max_c + 1]
-            clipped_transform  = sentinel_transform * Affine.translation(min_c, min_r)
+            clipped_transform  = window_transform(Window(min_c, min_r, max_c - min_c + 1, max_r - min_r + 1), sentinel_transform)
             clipped_crs        = sentinel_crs
 
             # -------------------------------------------------------------------
@@ -759,7 +773,7 @@ def run(cfg):
 
                     meta_entry = {
                         'path':       temp_path,
-                        'mean_depth': float(np.nanmean(y[M > 0])),
+                        'mean_depth': _mean_depth(y, M),
                         'coords':     coord
                     }
                     if   set_name == 'train': train_meta.append(meta_entry)

@@ -235,3 +235,33 @@ def test_every_load_model_call_unpacks_what_it_returns():
     for node in calls:
         target = node.targets[0]
         assert isinstance(target, ast.Tuple) and len(target.elts) == 3, ast.unparse(target)
+
+
+def test_default_num_workers_is_capped_at_8_unless_slurm_sets_it(monkeypatch):
+    # Issue #59: a null num_workers asked for 16 DataLoader workers on any machine.
+    from dl_bathy.train import default_num_workers
+    monkeypatch.delenv("SLURM_CPUS_PER_TASK", raising=False)
+    monkeypatch.setattr("os.cpu_count", lambda: 64)
+    assert default_num_workers() == 8
+    monkeypatch.setattr("os.cpu_count", lambda: 4)
+    assert default_num_workers() == 4
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "12")
+    assert default_num_workers() == 12
+
+
+def test_sdb_train_logs_rpe_without_near_zero_depths(scene, monkeypatch):
+    # Issue #59: RPE was printed as tens of millions of % because 0 m labels
+    # entered the relative error. The logged metric must leave out depths
+    # shallower than RPE_MIN_DEPTH (the RPE loss itself is unchanged).
+    import dl_bathy.train as train
+    seen = []
+    real = train.masked_sum_rpe_and_count
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("min_depth", 0.0))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(train, "masked_sum_rpe_and_count", spy)
+    main(["split", "--config", str(scene)])
+    assert main(["train", "--config", str(scene)]) == 0
+    assert train.RPE_MIN_DEPTH == 0.01 and set(seen) == {0.01}

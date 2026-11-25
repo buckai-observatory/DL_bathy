@@ -152,3 +152,14 @@ def test_swf_defaults_match_train_config():
         beta=TRAIN_DEFAULTS["SWF_beta"], Z0=TRAIN_DEFAULTS["SWF_Z0"],
     )
     assert math.isclose(default_total.item(), config_total.item(), rel_tol=1e-6)
+
+
+def test_rpe_min_depth_leaves_out_near_zero_depths():
+    # Issue #59: a 0 m label made the logged RPE explode (millions of %).
+    pred   = torch.tensor([[-1.0, -2.0, -0.5]])
+    target = torch.tensor([[ 0.0, -1.0, -0.005]])
+    mask   = torch.ones_like(target)
+    total, n = masked_sum_rpe_and_count(pred, target, mask, min_depth=0.01)
+    assert n.item() == 1 and math.isclose(total.item(), 1.0, rel_tol=1e-6)
+    total_all, n_all = masked_sum_rpe_and_count(pred, target, mask)  # default: unchanged
+    assert n_all.item() == 3 and total_all.item() > 1e5

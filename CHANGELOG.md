@@ -62,6 +62,16 @@ the next tag is cut.
 
 ### Fixed
 
+- **Issue #59** (confusing output on a default CPU/Mac run): the logged RPE
+  leaves out depths shallower than 0.01 m (as in the paper) instead of
+  reporting tens of millions of percent; the RPE training loss is unchanged.
+  A null `num_workers` now uses the CPU count capped at 8 (or
+  `SLURM_CPUS_PER_TASK`) instead of 16. With `split_strategy:
+  consistent_spatial`, patches are no longer buffered out when every patch goes
+  to one split (e.g. `train_ratio: 1.0`), since there is no leakage to prevent.
+  Patch transforms no longer use the deprecated `Affine *` operator, and a patch
+  without finite labels no longer warns about an empty slice.
+
 - **Issue #35**: `sdb split` exited with status 0 even when every scene
   failed, so the error only surfaced later as "No training patches found" in
   `sdb train`. It now prints a summary of found, failed and skipped scenes
