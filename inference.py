@@ -20,7 +20,7 @@ Two typical entry points:
 
 The model architecture is reconstructed exactly as in ``dl_bathy/train.py``:
 smp.DeepLabV3Plus with a 12-band input head and an ImageNet-pretrained
-encoder (default: tu-convnext_large). Only the weights change with each
+encoder (default: resnet50). Only the weights change with each
 release published to the Hub.
 """
 from __future__ import annotations
@@ -48,13 +48,18 @@ from dl_bathy.config import SPLIT_DEFAULTS
 #: old name, so older releases that use it keep working.
 HF_DEFAULT_REPO_ID = "BuckAIObservatory/dl-bathy-weights"
 
-#: Default checkpoint filename inside the HF repo. Matches the filename that
-#: dl_bathy/train.py writes at end-of-training.
-HF_DEFAULT_FILENAME = "deeplabv3_bathy_final.pth"
+#: Default checkpoint inside the HF repo: the ResNet-50 model, which had the
+#: lowest test RMSE within the training regions in Hsu & Moortgat (2026,
+#: Remote Sensing 18, 1768; Table 2), is close to the best in cross-regional
+#: transfer (Table 4), and is about five times smaller than ConvNeXt-Large.
+#: Each encoder's checkpoint is ``<folder>/deeplabv3_bathy_final.pth``, the
+#: filename dl_bathy/train.py writes at end-of-training; the ConvNeXt-Large
+#: checkpoint (the default before v0.2.0) is at the repository root.
+HF_DEFAULT_FILENAME = "resnet50/deeplabv3_bathy_final.pth"
 
 #: Encoder backbone used by the reference checkpoint. Same string accepted by
 #: ``dl_bathy/train.py``'s ``Model_mode``. Passed straight through to smp.
-DEFAULT_ENCODER = "tu-convnext_large"
+DEFAULT_ENCODER = "resnet50"
 
 # DeepLabV3+ encoder output stride: input height and width must be multiples of it.
 _OUTPUT_STRIDE = 16
