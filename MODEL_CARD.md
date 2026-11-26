@@ -60,13 +60,18 @@
   August 2026) and corrects tides with pyTMD/EOT20 (since October 2026);
   retraining with it will not reproduce the released weights exactly.
 
-- **Patches used by the released checkpoints** (from their training logs):
-  2,590 training and 520 validation patches (the augmented `train_aug` and
-  `valid_aug` sets; every patch passed the 10 % valid-pixel filter), and
-  288 held-out test patches from 11 scene dates (2020–2024).
+- **Patches used by the released checkpoints**:
+  - Patch size: 512 × 512 pixels.
+  - Split: 70 % training, 15 % validation, 15 % test.
+  - Augmentation: each training and validation patch was also saved rotated
+    by 90°, 180° and 270° and flipped horizontally, so these sets have five
+    copies of each patch. Test patches were not augmented.
+  - Counts (from the training logs): 2,590 training patches (518 before
+    augmentation) and 520 validation patches (104 before augmentation),
+    every one passing the 10 % valid-pixel filter, and 288 test patches from
+    11 scene dates (2020–2024).
 
-TODO (Amy): patch size (px), split ratios, augmentation strategy, and
-per-site sample counts.
+TODO (Amy): per-site patch counts.
 
 ## Training configuration
 

@@ -71,8 +71,9 @@ the next tag is cut.
 - **Issue #16** (model card): `MODEL_CARD.md` gives the GPU, run time and
   patch counts of the four released checkpoints, read from their training
   logs. The released files match those runs by SHA-256. Early-stopping and
-  scheduler patience are confirmed by the logs. Patch size, augmentation and
-  per-site counts are still to be filled in.
+  scheduler patience are confirmed by the logs. The model card also gives the
+  patch size, split ratios and augmentation; per-site counts are still to be
+  filled in.
 - **`tide` extra missing `h5py`**: pyTMD reads the EOT20 files through
   h5netcdf, which needs `h5py`, so `TIDE_SOURCE: pytmd` failed with
   `No module named 'h5py'` at the first scene. The `tide` extra and
