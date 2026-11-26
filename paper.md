@@ -76,7 +76,7 @@ found that general-purpose convolutional backbones trained with this
 pipeline match or outperform a task-specific transformer-based bathymetry
 network with several times more parameters, while remaining more robust to
 geographic transfer than a Random Forest baseline. Releasing the training
-and evaluation code lets other researchers reproduce these comparisons,
+and evaluation code lets other researchers reproduce the deep-learning results,
 adapt the pipeline to new sites and sensors, and build on the SWF loss
 formulation and spatially-continuous data-splitting strategy without
 re-implementing them from scratch.
@@ -154,7 +154,8 @@ Random Forest and four deep-learning architectures (ResNet-50, ResNet-101,
 EfficientNet-B4, ConvNeXt-Large) for transferable satellite-derived
 bathymetry across coral reef sites in the South China Sea and Australian
 waters, and benchmarks the approach against a task-specific bathymetry
-network on the public MagicBathyNet dataset.
+network on the public MagicBathyNet dataset. The Random Forest baseline of
+that study is not part of `DL_bathy`.
 
 # Acknowledgements
 

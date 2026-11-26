@@ -27,6 +27,10 @@ This code was developed to support the following paper. If you use this code or 
 
 > Hsu, H.-J., & Moortgat, J. (2026). *From Local Training to Large-Scale Mapping: A Comparative Assessment of Machine Learning and Deep Learning for Transferable Satellite-Derived Bathymetry*. Remote Sensing, 18(11), 1768. https://doi.org/10.3390/rs18111768
 
+DL_bathy implements the paper's deep-learning models. The paper's Random
+Forest baseline is not part of this software; its results are reported in
+the paper only.
+
 BibTeX:
 
 ```bibtex
