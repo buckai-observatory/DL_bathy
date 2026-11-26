@@ -66,12 +66,10 @@
   - Augmentation: each training and validation patch was also saved rotated
     by 90°, 180° and 270° and flipped horizontally, so these sets have five
     copies of each patch. Test patches were not augmented.
-  - Counts (from the training logs): 2,590 training patches (518 before
-    augmentation) and 520 validation patches (104 before augmentation),
-    every one passing the 10 % valid-pixel filter, and 288 test patches from
-    11 scene dates (2020–2024).
-
-TODO (Amy): per-site patch counts.
+  - Counts, totalled over the three sites: 2,590 training patches (518
+    before augmentation), 520 validation patches (104 before augmentation)
+    and 144 test patches from 10 scene dates (2020–2024). Every patch passed
+    the 10 % valid-pixel filter.
 
 ## Training configuration
 
@@ -120,7 +118,7 @@ same settings apart from the encoder; they were trained in January 2026.
 
 - Hardware: one GPU per run (`gpu_count_used: 1`), 16 data-loader workers
 - Run time is the logged wall-clock time of the whole run: data loading,
-  training, and inference on the 288 test patches.
+  training, and inference on the 144 test patches.
 
 ## Evaluation
 
