@@ -81,6 +81,8 @@ API_SECTIONS = [
       "masked_sum_swf_and_count", "masked_sum_huber_and_count"]),
     ("Inference", "Pretrained weights from the Hugging Face Hub.", "inference",
      ["predict_from_geoai_datacubes", "load_model", "predict_depth", "build_model"]),
+    ("Scoring against ground truth", "Errors overall and by depth band (demo notebook, smoke test).",
+     "dl_bathy.scoring", ["depth_band_errors", "format_depth_band_table"]),
     ("Band normalisation", "Shared by `sdb split` and inference.", "dl_bathy.bands",
      ["normalize_reflectance"]),
 ]

@@ -38,6 +38,8 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from dl_bathy.scoring import DEPTH_BANDS, depth_band_errors, format_depth_band_table  # noqa: E402
+
 # Same AOI/time range as the README quickstart and the demo notebook --
 # matches the public Ground_Truth.zip coverage.
 DEFAULT_AOI = [145.14, -14.56, 145.66, -14.26]
@@ -51,7 +53,9 @@ SCORED_RANGE = (-20.0, 0.0)
 
 def _depth_errors(depths: np.ndarray, gt_aligned: np.ndarray, scored_range=SCORED_RANGE) -> dict:
     """RMSE / MAE / bias of *depths* against *gt_aligned* over the pixels where
-    both are finite and the ground truth lies within *scored_range*."""
+    both are finite and the ground truth lies within *scored_range*, plus the
+    same errors per ground-truth depth band (``by_depth_band``). The bias
+    changes strongly with depth (#87), so the overall bias alone misleads."""
     valid = (np.isfinite(gt_aligned) & np.isfinite(depths)
              & (gt_aligned >= scored_range[0]) & (gt_aligned <= scored_range[1]))
     result = {"scored_range_m": list(scored_range), "overlapping_valid_pixels": int(valid.sum())}
@@ -62,6 +66,9 @@ def _depth_errors(depths: np.ndarray, gt_aligned: np.ndarray, scored_range=SCORE
             "mae_m": float(np.mean(np.abs(err))),
             "bias_m": float(np.mean(err)),
         })
+        bands = [b for b in DEPTH_BANDS if -scored_range[1] <= b[0] and b[1] <= -scored_range[0]]
+        if bands:
+            result["by_depth_band"] = depth_band_errors(depths, gt_aligned, bands)[:-1]
     return result
 
 
@@ -108,6 +115,9 @@ def _score_against_ground_truth(depths: np.ndarray, meta: dict, outdir: str) -> 
     print(f"[predict_demo_aoi] ground truth scored over {abs(SCORED_RANGE[1]):g}-{abs(SCORED_RANGE[0]):g} m: "
           + ", ".join(f"{k}={v:.2f}" for k, v in scores.items() if k.endswith("_m") and k != "scored_range_m")
           + f" (n={scores['overlapping_valid_pixels']})")
+    if "by_depth_band" in scores:
+        print("[predict_demo_aoi] errors by ground-truth depth (positive = predictions too shallow):")
+        print(format_depth_band_table(scores["by_depth_band"]))
     return {"ground_truth_file": gt_path, **scores}
 
 

@@ -44,6 +44,12 @@ the next tag is cut.
   CI) covering environment checks and the full inference path against
   the public GBR demo AOI — the scripted equivalent of running
   `notebooks/dl_bathy_demo.ipynb` without Jupyter.
+- **Errors by depth band (issue #87)**: `dl_bathy.scoring.depth_band_errors`
+  breaks the errors against ground truth down by ground-truth depth band. The
+  demo notebook and the smoke test print it next to the overall RMSE, MAE and
+  bias, and `MODEL_CARD.md` gives the demo results by depth band. The overall
+  bias of about +1 m comes mostly from depths of 10–20 m, where the models
+  predict too shallow, not from a constant or datum offset.
 
 ### Changed
 
