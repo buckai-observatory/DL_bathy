@@ -140,7 +140,7 @@ pip install -e .                     # `sdb split` only (local scenes, custom or
 ```
 
 Extras: `train` (PyTorch, segmentation-models-pytorch), `inference` (adds
-`huggingface_hub`), `fetch` (`geoai-datacubes`), `tide` (`pyTMD`), `dev` (`pytest`).
+`huggingface_hub`), `fetch` (`geoai-datacubes`), `tide` (`pyTMD`, `h5py`), `dev` (`pytest`).
 On a GPU cluster, install the PyTorch build matching your CUDA version first.
 
 The previous requirements files still work:
@@ -169,10 +169,12 @@ tide model (Hart-Davis et al., 2021). pyTMD is pure Python and pip-installable,
 but EOT20's constituent files (~2 GB) are not bundled with pyTMD and must
 be downloaded once:
 
-1. Download the EOT20 ocean tide NetCDF files from
+1. Download the EOT20 archive from
    [SEANOE](https://doi.org/10.17882/79489) (open access, no account
-   required).
-2. Arrange them as `<directory>/EOT20/ocean_tides/*.nc.gz` and point
+   required). It contains `ocean_tides.zip` and `load_tides.zip`; only
+   `ocean_tides.zip` is needed.
+2. Unzip `ocean_tides.zip` so the files sit at
+   `<directory>/EOT20/ocean_tides/*_ocean_eot20.nc` and point
    `TIDE_MODEL_DIRECTORY` in the `split` section of your config at `<directory>`
    (leave it as `None` to use pyTMD's default cache directory instead).
 

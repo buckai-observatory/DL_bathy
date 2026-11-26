@@ -32,7 +32,8 @@ dependencies = [
 train = ["torch", "torchvision", "segmentation-models-pytorch"]
 inference = ["torch", "torchvision", "segmentation-models-pytorch", "huggingface_hub"]
 fetch = ["geoai-datacubes"]
-tide = ["pyTMD"]
+# pyTMD reads the EOT20 NetCDF files through h5netcdf, which needs h5py.
+tide = ["pyTMD", "h5py"]
 dev = ["pytest"]
 # Documentation website: API reference from docstrings. quartodoc 0.11 is not
 # compatible with griffe 2.x.

@@ -62,6 +62,13 @@ the next tag is cut.
 
 ### Fixed
 
+- **`tide` extra missing `h5py`**: pyTMD reads the EOT20 files through
+  h5netcdf, which needs `h5py`, so `TIDE_SOURCE: pytmd` failed with
+  `No module named 'h5py'` at the first scene. The `tide` extra and
+  `requirements.txt` now include `h5py`, `sdb split` checks for it before
+  fetching anything, and the README and error message give EOT20's real
+  layout (`<directory>/EOT20/ocean_tides/*_ocean_eot20.nc`, from
+  `ocean_tides.zip` inside the SEANOE download).
 - **Issue #58** (README gaps for new users): the README explains how to split
   the three rasters in `Ground_Truth.zip` into train / validation / test
   patches, and which device training runs on. `sdb split` with a missing
