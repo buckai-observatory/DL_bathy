@@ -108,6 +108,11 @@ depths, meta = predict_from_geoai_datacubes(aoi=..., time_range=..., model=model
 | ConvNeXt-Large | `deeplabv3_bathy_final.pth` | `tu-convnext_large` | 3.00 / 1.86 m |
 | EfficientNet-B4 | `efficientnet_b4/deeplabv3_bathy_final.pth` | `efficientnet-b4` | 4.05 / 2.65 m |
 
+The demo-scene errors score one full Sentinel-2 scene (19 August 2020)
+against the public ground truth, to illustrate the pipeline. They are not
+the held-out test evaluation reported in Hsu & Moortgat (2026); see
+[`MODEL_CARD.md`](MODEL_CARD.md) for how they were computed.
+
 Note the folder `efficientnet_b4` (underscore) versus the encoder name
 `efficientnet-b4` (hyphen). The default follows the paper's within-region
 results (Hsu & Moortgat, 2026, Table 2); ConvNeXt-Large was the default
