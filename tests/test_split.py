@@ -185,6 +185,7 @@ def test_pytmd_tide_grid_queries_lon_lat_for_projected_scene(tmp_path, monkeypat
     fake = types.ModuleType("pyTMD")
     fake.compute = types.SimpleNamespace(tide_elevations=tide_elevations)
     monkeypatch.setitem(sys.modules, "pyTMD", fake)
+    monkeypatch.setitem(sys.modules, "h5py", types.ModuleType("h5py"))
 
     _, tide = generate_tide_grid(str(tmp_path / "s.tif"), datetime(2023, 5, 1, 2, 30),
                                  str(tmp_path / "tide"))
@@ -321,6 +322,7 @@ def test_split_without_tide_model_files_fails_before_fetching(scene, tmp_path, m
     # Without the EOT20 files, sdb split fetched the scenes first and then
     # failed with only a file path. It must now stop before any fetch or folder.
     pytest.importorskip("pyTMD")
+    pytest.importorskip("h5py")
     import dl_bathy.split as split
     fetched = []
     monkeypatch.setattr(split, "find_sentinel_files", lambda cfg: fetched.append(1) or [])
@@ -338,14 +340,19 @@ def test_split_without_tide_model_files_fails_before_fetching(scene, tmp_path, m
     assert not (scene.parent / "Data").exists()
 
 
-def test_split_without_pytmd_fails_before_fetching(scene, monkeypatch, capsys):
+@pytest.mark.parametrize("missing", ["pyTMD", "h5py"])
+def test_split_without_pytmd_fails_before_fetching(scene, monkeypatch, capsys, missing):
+    # h5py: pyTMD reads EOT20 through h5netcdf, which fails without it.
     import builtins
+    import types
     import dl_bathy.split as split
     real_import = builtins.__import__
 
     def no_pytmd(name, *args, **kwargs):
-        if name == "pyTMD":
-            raise ImportError("No module named 'pyTMD'")
+        if name == missing:
+            raise ImportError(f"No module named '{missing}'")
+        if name in ("pyTMD", "h5py"):
+            return types.ModuleType(name)
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", no_pytmd)
@@ -354,5 +361,6 @@ def test_split_without_pytmd_fails_before_fetching(scene, monkeypatch, capsys):
     cfg["split"]["TIDE_SOURCE"] = "pytmd"
     scene.write_text(yaml.safe_dump(cfg))
     assert main(["split", "--config", str(scene)]) == 1
-    assert "requires the pyTMD package" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "requires the pyTMD and h5py packages" in err and missing in err
     assert not (scene.parent / "Data").exists()

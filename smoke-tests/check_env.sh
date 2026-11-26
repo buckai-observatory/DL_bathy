@@ -38,6 +38,7 @@ torch:torch
 torchvision:torchvision
 segmentation-models-pytorch:segmentation_models_pytorch
 pyTMD:pyTMD
+h5py:h5py
 huggingface_hub:huggingface_hub
 "
 

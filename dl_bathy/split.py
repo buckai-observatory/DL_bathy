@@ -202,9 +202,13 @@ def get_bbox_from_transform(transform, rows, cols):
 def _import_pytmd():
     try:
         import pyTMD
+        # pyTMD opens the EOT20 NetCDF-4 files through h5netcdf, which needs h5py;
+        # without it the error appears only once the first scene is processed.
+        import h5py  # noqa: F401
     except ImportError as exc:
         raise ImportError(
-            "TIDE_SOURCE='pytmd' requires the pyTMD package. In a clone of DL_bathy "
+            "TIDE_SOURCE='pytmd' requires the pyTMD and h5py packages "
+            f"({exc}). In a clone of DL_bathy "
             "run `pip install -e \".[tide]\"`, or install from GitHub with "
             "`pip install \"dl-bathy[tide] @ git+https://github.com/buckai-observatory/DL_bathy\"`. Alternatively set TIDE_SOURCE='custom' "
             "(bring-your-own tide grids) or 'none' (skip tidal correction).") from exc
@@ -227,7 +231,7 @@ def check_tide_model(model_name="EOT20", directory=None):
         raise FileNotFoundError(
             f"TIDE_SOURCE is 'pytmd' but the {model_name} tide model files were not found "
             f"(missing: {missing}). Download EOT20 from SEANOE "
-            "(https://doi.org/10.17882/79489), unpack it as <directory>/EOT20/ocean_tides/*.nc.gz "
+            "(https://doi.org/10.17882/79489), unzip its ocean_tides.zip as <directory>/EOT20/ocean_tides/*_ocean_eot20.nc "
             "and set TIDE_MODEL_DIRECTORY to <directory> (or leave it null to use pyTMD's "
             "default cache); see 'Tide model data' in the README. To run without a tide model, "
             "set TIDE_SOURCE: none (no tide correction) or TIDE_SOURCE: custom (your own tide "
