@@ -51,9 +51,14 @@
   dataset includes commercially licensed LiDAR that cannot be
   redistributed; this is documented in the repo's `Data availability`
   section.
-- **Sentinel-2 imagery**: L2A reflectance bands 1–12 (B01–B12), fetched
-  at the training AOIs / dates via the geoai-datacubes pipeline. Cloud
+- **Sentinel-2 imagery**: L2A reflectance bands 1–12 (B01–B12). Cloud
   and shadow pixels are excluded via the SCL band during training.
+- **How the released weights' training data was made**: the Sentinel-2
+  scenes were downloaded from Google Earth Engine, and the labels were
+  tide-corrected with the DTU23 tide model (January 2026). The current
+  pipeline (`sdb split`) downloads scenes with geoai-datacubes (since
+  August 2026) and corrects tides with pyTMD/EOT20 (since October 2026);
+  retraining with it will not reproduce the released weights exactly.
 
 - **Patches used by the released checkpoints** (from their training logs):
   2,590 training and 520 validation patches (the augmented `train_aug` and
@@ -83,6 +88,11 @@ same settings apart from the encoder; they were trained in January 2026.
   `depth_type: "deep"` because it was trained before issue #11 was fixed,
   when `"deep"` kept depths shallower than `depth_threshold`. With the
   current code, the same setting is `depth_type: "shallow"` (the default).
+- Tide correction: the training labels were made with DTU23 tide heights
+  **added** to the LiDAR depths, the sign later found to be wrong (issue #47;
+  `sdb split` subtracts them from v0.2.0). At the demo site the old sign shifts
+  predictions by about 0.1 m, because the mean tide at the Sentinel-2 overpass
+  time there is close to zero.
 - Loss: SWF (smooth weight function, depth-weighted squared error), per-pixel
   weight `1 + beta * exp(-|z| / Z0)` with `SWF_beta = 5.0`, `SWF_Z0 = 10.0`
   (`loss_type: swf`)

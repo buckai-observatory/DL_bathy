@@ -764,7 +764,10 @@ def run(cfg):
             acq_dt = scene_acquisition_datetime(sentinel_file, cfg["Sentinel2_level"])
 
             tide_grid = get_tide_grid_for_scene(sentinel_file, acq_dt, resampled_lidar.shape, cfg)
-            resampled_lidar += tide_grid
+            # Depths are negative below mean sea level and the tide is positive when
+            # the sea is higher, so at high tide the water over each pixel is deeper:
+            # the label (depth below the sea surface the image sees) is depth - tide (#47).
+            resampled_lidar -= tide_grid
 
             # --- Normalise Sentinel-2 reflectance ---
             cube = normalize_reflectance(cube, Logcube, cfg["band_normalization"], cfg["Epsilon"])

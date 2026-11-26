@@ -99,7 +99,9 @@ def test_augment_folder_tifs_only_augments_the_given_files(tmp_path):
         np.testing.assert_array_equal(src.read(1), np.rot90(np.arange(16).reshape(4, 4)))
 
 
-def test_custom_tide_grid_is_added_to_depths(scene):
+def test_custom_tide_grid_is_subtracted_from_depths(scene):
+    # A +1.5 m tide (sea 1.5 m above mean sea level) makes every pixel 1.5 m
+    # deeper below the sea surface, i.e. 1.5 m more negative (#47).
     import yaml
     from tests.conftest import write_tif, SIZE
     cfg = yaml.safe_load(scene.read_text())
@@ -108,9 +110,12 @@ def test_custom_tide_grid_is_added_to_depths(scene):
     # Acquisition 2023-05-01 02:30:00 -> tide_20230501_023000.tif
     write_tif(scene.parent / "tide" / "tide_20230501_023000.tif", np.full((SIZE, SIZE), 1.5), "float32")
     assert main(["split", "--config", str(scene)]) == 0
-    _, y, mask, _ = read_patch_tif(next((scene.parent / "Data" / "train").glob("*.tif")))
-    valid = y[mask > 0]
-    assert valid.max() <= -1 + 1.5 + 1e-4 and valid.min() >= -25 + 1.5 - 1e-3
+    patches = sorted((scene.parent / "Data").glob("*/*.tif"))
+    assert patches
+    valid = np.concatenate([y[m > 0] for _, y, m, _ in map(read_patch_tif, patches)])
+    # LiDAR spans -1 m to -25 m; with the tide subtracted it spans -2.5 m to -26.5 m.
+    assert -2.5 - 0.5 < valid.max() <= -2.5 + 1e-4
+    assert valid.min() >= -26.5 - 1e-3
 
 
 def test_geoai_datacubes_scene_uses_acquisition_time_from_userdata(scene):

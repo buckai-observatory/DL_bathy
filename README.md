@@ -221,6 +221,14 @@ split:
 - **`'none'`** — skip tidal correction entirely (tide height = 0 m
   everywhere).
 
+The tide height is subtracted from the LiDAR depths (negative below mean sea
+level), so each training label is the depth below the sea surface at the
+moment the Sentinel-2 image was taken. Predictions are therefore depths below
+the sea surface at the image's acquisition time; add that time's tide height to
+refer them back to mean sea level. Before v0.2.0 the tide was added instead
+(issue #47); the released weights were trained that way, which at the demo site
+shifts depths by about 0.1 m.
+
 ### 2. Choose a data-acquisition mode
 
 Step 1 supports two `DATA_SOURCE` modes for the Sentinel-2 imagery,
