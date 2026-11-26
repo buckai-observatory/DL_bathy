@@ -1,0 +1,75 @@
+name: demo-notebook
+
+# Runs notebooks/dl_bathy_demo.ipynb from top to bottom on a fresh Ubuntu
+# runner with Colab's Python version: it downloads the released weights from
+# the Hugging Face Hub and a Sentinel-2 scene with geoai-datacubes, predicts
+# depths and compares them with the public ground truth.
+#
+# - Pull requests: the notebook runs against the code of the pull request.
+#   The repository is installed from the checkout, and the notebook's
+#   "%pip install ... @ git+...DL_bathy.git" line is commented out in the
+#   copy that is executed, so it does not replace that code with main.
+# - Monthly and on demand: the notebook runs unchanged, as on Colab, so it
+#   installs DL_bathy from GitHub (main) itself.
+#
+# Needs internet access (Hugging Face, Earth Search), so it runs when the
+# notebook or the code it calls changes, monthly and on demand.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 1 * *"
+  pull_request:
+    paths:
+      - 'notebooks/**'
+      - 'inference.py'
+      - 'dl_bathy/**'
+      - 'pyproject.toml'
+      - 'Ground_Truth.zip'
+      - '.github/workflows/notebook.yml'
+
+jobs:
+  notebook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # setuptools_scm needs the tags for the version
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU-only PyTorch (Colab has PyTorch preinstalled)
+        run: pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - name: Install Jupyter
+        run: pip install -q nbconvert ipykernel
+      - name: Install DL_bathy from this checkout (pull requests)
+        if: github.event_name == 'pull_request'
+        run: |
+          pip install -q -e ".[inference,fetch]"
+          python - <<'EOF'
+          import json, pathlib
+          path = pathlib.Path("notebooks/dl_bathy_demo.ipynb")
+          nb = json.loads(path.read_text(encoding="utf-8"))
+          changed = 0
+          for cell in nb["cells"]:
+              if cell["cell_type"] != "code":
+                  continue
+              lines = "".join(cell["source"]).splitlines(keepends=True)
+              new = ["# (CI) " + l if l.lstrip().startswith("%pip install") else l for l in lines]
+              changed += sum(a != b for a, b in zip(lines, new))
+              cell["source"] = new
+          assert changed == 1, f"expected one %pip install line, found {changed}"
+          pathlib.Path("notebooks/ci_dl_bathy_demo.ipynb").write_text(json.dumps(nb), encoding="utf-8")
+          EOF
+      - name: Keep the notebook unchanged (monthly and on demand)
+        if: github.event_name != 'pull_request'
+        run: cp notebooks/dl_bathy_demo.ipynb notebooks/ci_dl_bathy_demo.ipynb
+      - name: Run the demo notebook
+        working-directory: notebooks
+        run: jupyter nbconvert --to notebook --execute --output executed.ipynb --ExecutePreprocessor.timeout=1800 ci_dl_bathy_demo.ipynb
+      - name: Upload the executed notebook
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: executed-demo-notebook
+          path: notebooks/executed.ipynb
