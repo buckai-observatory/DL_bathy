@@ -13,3 +13,6 @@ site/_build/
 notebooks/Ground_Truth.zip
 notebooks/Ground_Truth/
 notebooks/s2_fetched/
+# pixi environments (pixi.lock is committed)
+.pixi/
+.ipynb_checkpoints/

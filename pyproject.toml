@@ -58,3 +58,68 @@ testpaths = ["tests"]
 # The tests write about 3 GB of temporary patches per run; keep them only
 # for failed tests instead of for the last three runs.
 tmp_path_retention_policy = "failed"
+
+# ---------------------------------------------------------------------------
+# Reproducible environment with pixi (https://pixi.sh). pixi.lock pins every
+# package for macOS (Apple silicon and Intel), Linux and Windows. See the
+# README, "Reproducible environment with pixi". The packages mirror
+# requirements.txt and the [all] extra, resolved from conda-forge; keep them
+# in sync.
+# ---------------------------------------------------------------------------
+[tool.pixi.workspace]
+name = "dl-bathy"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64", "win-64"]
+
+[tool.pixi.dependencies]
+python = ">=3.10,<3.13"
+numpy = "*"
+pandas = "*"
+matplotlib-base = "*"
+scipy = "*"
+scikit-image = "*"
+rasterio = "*"
+pyyaml = "*"
+pytorch = "*"
+torchvision = "*"
+segmentation-models-pytorch = "*"
+huggingface_hub = "*"
+pytmd = "*"
+h5py = "*"
+pip = "*"
+
+# geoai-datacubes comes from PyPI, and the package itself is installed in
+# editable mode so the `sdb` command and `import inference` work.
+[tool.pixi.pypi-dependencies]
+geoai-datacubes = ">=1.1"
+dl-bathy = { path = ".", editable = true }
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+
+[tool.pixi.feature.notebook.dependencies]
+jupyterlab = ">=4"
+ipykernel = "*"
+nbconvert = "*"
+
+# Jupyter looks for kernels in the user's own folder (e.g. ~/Library/Jupyter
+# on macOS) before the environment's. A "python3" kernel there, left by
+# another installation, would then run the notebook with a Python that lacks
+# DL_bathy. JUPYTER_PATH puts the environment's own kernel first.
+[tool.pixi.feature.notebook.activation.env]
+JUPYTER_PATH = "$CONDA_PREFIX/share/jupyter"
+
+[tool.pixi.feature.notebook.target.win-64.activation.env]
+JUPYTER_PATH = "%CONDA_PREFIX%\\share\\jupyter"
+
+[tool.pixi.environments]
+default = { features = [], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+notebook = { features = ["notebook"], solve-group = "default" }
+
+[tool.pixi.feature.test.tasks]
+test = { cmd = "pytest tests/", description = "Run the test suite" }
+
+[tool.pixi.feature.notebook.tasks]
+# Named `lab`, not `jupyter`: a task named after an executable would shadow it.
+lab = { cmd = "jupyter lab notebooks/dl_bathy_demo.ipynb", description = "Open the demo notebook in JupyterLab" }

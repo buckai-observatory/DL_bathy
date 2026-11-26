@@ -50,6 +50,12 @@ the next tag is cut.
   bias, and `MODEL_CARD.md` gives the demo results by depth band. The overall
   bias of about +1 m comes mostly from depths of 10–20 m, where the models
   predict too shallow, not from a constant or datum offset.
+- **Reproducible environment with pixi**: `[tool.pixi]` in `pyproject.toml`
+  and `pixi.lock` pin every package for macOS (Apple silicon and Intel),
+  Linux and Windows. `pixi run --locked -e test test` runs the tests and
+  `pixi run --locked -e notebook lab` opens the demo notebook. The new
+  `pixi-locked` workflow installs the locked environment on all four systems
+  and runs the test suite in it.
 
 ### Changed
 
