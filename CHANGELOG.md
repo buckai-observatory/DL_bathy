@@ -47,6 +47,10 @@ the next tag is cut.
 
 ### Changed
 
+- **Random Forest baseline scope (issue #60)**: the README and `paper.md`
+  state that the Random Forest baseline of Hsu & Moortgat (2026) is not part
+  of DL_bathy, and `paper.md` no longer says the released code reproduces
+  that comparison.
 - **Tide correction sign (issue #47)**: `sdb split` now subtracts the tide
   height from the LiDAR depths instead of adding it, so a label is the depth
   below the sea surface when the image was taken (deeper at high tide).
