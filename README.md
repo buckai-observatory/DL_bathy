@@ -104,9 +104,9 @@ depths, meta = predict_from_geoai_datacubes(aoi=..., time_range=..., model=model
 | Model | `filename` | `encoder_name` | Demo scene RMSE / MAE (0–20 m) |
 |---|---|---|---|
 | ResNet-50 (default) | `resnet50/deeplabv3_bathy_final.pth` | `resnet50` | 2.49 / 1.74 m |
-| ResNet-101 | `resnet101/deeplabv3_bathy_final.pth` | `resnet101` | 2.62 / 1.75 m |
-| ConvNeXt-Large | `deeplabv3_bathy_final.pth` | `tu-convnext_large` | 3.01 / 1.86 m |
-| EfficientNet-B4 | `efficientnet_b4/deeplabv3_bathy_final.pth` | `efficientnet-b4` | 4.07 / 2.67 m |
+| ResNet-101 | `resnet101/deeplabv3_bathy_final.pth` | `resnet101` | 2.62 / 1.76 m |
+| ConvNeXt-Large | `deeplabv3_bathy_final.pth` | `tu-convnext_large` | 3.00 / 1.86 m |
+| EfficientNet-B4 | `efficientnet_b4/deeplabv3_bathy_final.pth` | `efficientnet-b4` | 4.05 / 2.65 m |
 
 Note the folder `efficientnet_b4` (underscore) versus the encoder name
 `efficientnet-b4` (hyphen). The default follows the paper's within-region

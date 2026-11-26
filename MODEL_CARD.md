@@ -136,23 +136,49 @@ reproduce it with `notebooks/dl_bathy_demo.ipynb` or the smoke test:
 - Ground truth: `Great_Barrier_Reef_A_2020_30m_MSL_cog_depth_0_to_-30_T55LCE_test.tif`
   from `Ground_Truth.zip`, resampled to the prediction grid.
 - Pixels scored: SCL water pixels where the ground truth is 0–20 m deep
-  (the training range), n = 487,316. Error = prediction − ground truth, with
+  (the training range), n = 487,070. Error = prediction − ground truth, with
   depths negative below sea level, so a positive bias means the predictions
   are too shallow.
+- Vertical reference: the ground truth is in local mean sea level, the same
+  reference as the GBR training labels (their MSL values were used as EGM2008
+  heights without a shift), so the comparison has no datum offset (issue #87).
 
 | Encoder | RMSE (m) | MAE (m) | Bias (m) | CPU inference time |
 |---|---|---|---|---|
-| `tu-convnext_large` | 3.01 | 1.86 | +1.09 | 542 s |
-| `resnet50` (default) | 2.49 | 1.74 | +1.03 | 77 s |
-| `resnet101` | 2.62 | 1.75 | +0.98 | 148 s |
-| `efficientnet-b4` | 4.07 | 2.67 | +2.26 | 219 s |
+| `tu-convnext_large` | 3.00 | 1.86 | +1.10 | 521 s |
+| `resnet50` (default) | 2.49 | 1.74 | +1.06 | 56 s |
+| `resnet101` | 2.62 | 1.76 | +1.00 | 64 s |
+| `efficientnet-b4` | 4.05 | 2.65 | +2.23 | 159 s |
 
-Measured on 12 November 2026 with DL_bathy commit `2b0926a` on an Apple
-silicon Mac (CPU only; inference time covers the whole scene). Including
-ground truth deeper than 20 m (0–30 m, n = 756,444) raises RMSE to 13.7–15.1 m
-for every encoder, because the models were not trained beyond 20 m (see
-*Out-of-scope*). `efficientnet-b4` also predicts some pixels above sea level
-(up to +7.5 m).
+Measured on 26 November 2026 with DL_bathy commit `01300ae` on an Apple
+silicon Mac (M1 Max, CPU only; inference time covers the whole scene, not
+loading the weights). Including ground truth deeper than 20 m (0–30 m,
+n = 756,342) raises RMSE to 13.7–15.0 m for every encoder, because the models
+were not trained beyond 20 m (see *Out-of-scope*). Over the whole scene,
+`efficientnet-b4` also predicts some water pixels far above sea level (up to
++15.5 m); the other checkpoints stay below +0.7 m.
+
+**Error by depth.** The bias is not a constant offset. It changes with depth
+in the same way for every checkpoint. The table gives the bias (m) by
+ground-truth depth band, for the same scene and pixels:
+
+| Ground-truth depth | Share of pixels | `tu-convnext_large` | `resnet50` | `resnet101` | `efficientnet-b4` |
+|---|---|---|---|---|---|
+| 0–2 m | 9.9 % | −0.49 | −0.54 | −0.65 | −0.28 |
+| 2–5 m | 33.4 % | +0.23 | +0.23 | +0.08 | +0.53 |
+| 5–10 m | 19.8 % | +0.56 | +0.83 | +0.54 | +1.89 |
+| 10–15 m | 19.0 % | +1.11 | +1.37 | +1.33 | +2.98 |
+| 15–20 m | 18.0 % | +4.15 | +3.40 | +3.75 | +6.38 |
+| **0–20 m** | 100 % | **+1.10** | **+1.06** | **+1.00** | **+2.23** |
+
+- Every checkpoint predicts too deep in water shallower than 2 m, and too
+  shallow from a few metres down, increasingly so with depth. This is the
+  regression to the mean that Hsu & Moortgat (2026) describe at the transfer
+  sites (Ashmore and Cartier reefs).
+- Depths of 10–20 m (37 % of the pixels) account for most of the overall bias:
+  for `resnet50`, +0.87 m of the +1.06 m.
+- The notebook and the smoke test print this breakdown with
+  `dl_bathy.scoring.depth_band_errors`.
 
 ## How to use
 
