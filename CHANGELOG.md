@@ -56,6 +56,11 @@ the next tag is cut.
   `pixi run --locked -e notebook lab` opens the demo notebook. The new
   `pixi-locked` workflow installs the locked environment on all four systems
   and runs the test suite in it.
+- **Demo notebook in continuous integration**: the new `demo-notebook`
+  workflow runs `notebooks/dl_bathy_demo.ipynb` from top to bottom on Ubuntu
+  with Python 3.12. On pull requests that change the notebook or the code it
+  calls, it runs against the pull request's code; monthly and on demand it
+  runs the notebook unchanged, installing DL_bathy from GitHub as on Colab.
 
 ### Changed
 
