@@ -55,18 +55,21 @@
   at the training AOIs / dates via the geoai-datacubes pipeline. Cloud
   and shadow pixels are excluded via the SCL band during training.
 
-TODO: total number of training patches, patch size (px), split ratios,
-augmentation strategy, and per-site sample counts (as fixed for the
-release being published).
+- **Patches used by the released checkpoints** (from their training logs):
+  2,590 training and 520 validation patches (the augmented `train_aug` and
+  `valid_aug` sets; every patch passed the 10 % valid-pixel filter), and
+  288 held-out test patches from 11 scene dates (2020–2024).
+
+TODO (Amy): patch size (px), split ratios, augmentation strategy, and
+per-site sample counts.
 
 ## Training configuration
 
 Values below are read from each released checkpoint's `metadata.json`
-on the Hugging Face Hub. All four deep-learning checkpoints share the same
-settings apart from the encoder. Values marked † are not recorded in
-`metadata.json`; they are the settings of the original training script
-(`step2_train_test.py`, first published in this repository in March 2026)
-and are also the current `sdb` defaults.
+on the Hugging Face Hub and from the training log of the run that produced
+it (the released `deeplabv3_bathy_final.pth` files have the same SHA-256 as
+the files those runs saved). All four deep-learning checkpoints share the
+same settings apart from the encoder; they were trained in January 2026.
 
 - Encoder backbone: `resnet50` (default), `resnet101`, `efficientnet-b4` or `tu-convnext_large`, one checkpoint each
 - Input channels: 12 (Sentinel-2 bands B01–B12)
@@ -87,21 +90,22 @@ and are also the current `sdb` defaults.
 - Gradient clipping: max norm 5.0
 - Patch filtering: patches with < 10 % valid pixels are skipped
   (`min_valid_ratio: 0.1`)
-- Scheduler: ReduceLROnPlateau (factor 0.5, patience 5 †)
+- Scheduler: ReduceLROnPlateau (factor 0.5, patience 5)
 - Batch size: 16
 - Epochs: up to 1000 with early stopping after 10 epochs without
-  validation improvement †; epochs actually run and best
-  validation loss (SWF units) per checkpoint:
+  validation improvement; epochs actually run, best validation loss (SWF
+  units), GPU and total run time per checkpoint:
 
-  | Encoder | Epochs run | Best validation loss |
-  |---|---|---|
-  | `tu-convnext_large` | 23 | 4.50 |
-  | `resnet101` | 33 | 3.23 |
-  | `resnet50` (default) | 40 | 3.60 |
-  | `efficientnet-b4` | 23 | 4.97 |
+  | Encoder | Epochs run | Best validation loss | GPU | Run time |
+  |---|---|---|---|---|
+  | `tu-convnext_large` | 23 | 4.50 | NVIDIA L40S | 20 h 45 min |
+  | `resnet101` | 33 | 3.23 | NVIDIA A40 | 25 h 46 min |
+  | `resnet50` (default) | 40 | 3.60 | NVIDIA A40 | 26 h 33 min |
+  | `efficientnet-b4` | 23 | 4.97 | NVIDIA L40S | 20 h 10 min |
 
-- Hardware: one GPU (`gpu_count_used: 1`); GPU model TODO
-- Wall-clock training time: TODO
+- Hardware: one GPU per run (`gpu_count_used: 1`), 16 data-loader workers
+- Run time is the logged wall-clock time of the whole run: data loading,
+  training, and inference on the 288 test patches.
 
 ## Evaluation
 
