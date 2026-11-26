@@ -1,0 +1,58 @@
+name: pixi-locked
+
+# Installs the locked pixi environment exactly as the README tells users to
+# (pixi run --locked) on clean macOS (Apple silicon and Intel), Windows and
+# Linux machines, then runs the test suite and checks that the `sdb` command
+# and the inference module load. --locked fails if pyproject.toml and
+# pixi.lock disagree. On Windows the clone is copied to a short folder, as
+# the README advises, because of the 260-character path limit.
+on:
+  push:
+    branches: [main]
+    paths: ['pyproject.toml', 'pixi.lock', 'requirements*.txt', '.github/workflows/pixi.yml']
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 1 * *"
+
+jobs:
+  locked:
+    name: ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: macos-latest, label: "macOS Apple silicon", dir: "."}
+          - {os: macos-15-intel, label: "macOS Intel", dir: "."}
+          - {os: windows-latest, label: "Windows", dir: 'C:\work\DL_bathy'}
+          - {os: ubuntu-latest, label: "Linux", dir: "."}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # setuptools_scm needs the tags for the version
+      - name: Copy the clone to a short folder (Windows)
+        if: runner.os == 'Windows'
+        working-directory: .
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path (Split-Path "${{ matrix.dir }}") | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "${{ matrix.dir }}"
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.77.1
+          manifest-path: ${{ matrix.dir }}/pyproject.toml
+          environments: test notebook
+          locked: true
+          cache: true
+      - name: Environment
+        run: |
+          pixi run --locked -e test python -c "import sys, torch, segmentation_models_pytorch as smp, rasterio, pyTMD, geoai_datacubes, inference, dl_bathy; print(sys.executable); print('Python', sys.version.split()[0], '| torch', torch.__version__, '| smp', smp.__version__, '| rasterio', rasterio.__version__, '| geoai-datacubes', geoai_datacubes.__version__)"
+          pixi run --locked -e test sdb --help
+      - name: Tests
+        run: pixi run --locked -e test test
+      - name: The notebook kernel is the environment's own
+        run: pixi run --locked -e notebook python -c "from jupyter_client.kernelspec import KernelSpecManager as K; d = K().get_kernel_spec('python3').resource_dir; print(d); assert '.pixi' in d"
