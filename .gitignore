@@ -13,6 +13,9 @@ site/_build/
 notebooks/Ground_Truth.zip
 notebooks/Ground_Truth/
 notebooks/s2_fetched/
+# pixi environments (pixi.lock is committed)
+.pixi/
+.ipynb_checkpoints/
 # executed copies written by the demo-notebook workflow
 notebooks/ci_dl_bathy_demo.ipynb
 notebooks/executed.ipynb

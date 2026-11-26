@@ -155,6 +155,31 @@ pip install -r requirements-inference.txt  # inference.py only, no GDAL/pyTMD
 pip install -r requirements-test.txt       # test suite, same as pip install -e ".[train,dev]"
 ```
 
+### Reproducible environment with pixi
+
+[pixi](https://pixi.sh) installs the exact package versions recorded in
+`pixi.lock`, the same on macOS (Apple silicon and Intel), Linux and Windows.
+It needs no Python or conda installed beforehand. Continuous integration
+installs this environment on all four systems and runs the test suite in it.
+
+```bash
+# install pixi once: https://pixi.sh/latest/#installation
+git clone https://github.com/buckai-observatory/DL_bathy.git
+cd DL_bathy
+pixi run --locked -e test test       # installs the environment, then runs the test suite
+pixi run --locked -e notebook lab    # opens the demo notebook in JupyterLab
+pixi shell --locked                  # a shell in the environment, with the `sdb` command
+```
+
+`--locked` makes pixi stop with an error if `pyproject.toml` and `pixi.lock`
+disagree, instead of quietly solving a new environment. The environment has
+everything in the `[all]` extra: training, inference, fetching with
+geoai-datacubes, and pyTMD for tides. PyTorch is built without CUDA: it
+runs on the CPU, and on Apple silicon Macs also on the GPU (MPS). For training on a GPU, use the pip install above with the PyTorch
+build that matches your CUDA version. On Windows, clone into a short folder
+such as `C:\work\DL_bathy`: some package paths are long, and Windows limits
+paths to 260 characters unless long paths are enabled.
+
 `huggingface_hub` is only required for the **inference-only** entry
 point (`inference.py`), which downloads the pretrained model weights
 from the Hugging Face Hub. The training commands (`sdb split`,
