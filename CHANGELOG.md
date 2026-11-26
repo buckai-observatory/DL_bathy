@@ -47,6 +47,12 @@ the next tag is cut.
 
 ### Changed
 
+- **Tide correction sign (issue #47)**: `sdb split` now subtracts the tide
+  height from the LiDAR depths instead of adding it, so a label is the depth
+  below the sea surface when the image was taken (deeper at high tide).
+  Training data made with earlier versions, and the released weights, used
+  the old sign. A check against EOT20 on 22 scenes at the demo site puts the
+  effect at about 0.1 m there. Retrain to get models made with the new sign.
 - **The default inference model is now ResNet-50** (`inference.DEFAULT_ENCODER =
   "resnet50"`, `HF_DEFAULT_FILENAME = "resnet50/deeplabv3_bathy_final.pth"`),
   following Hsu & Moortgat (2026): lowest within-region test RMSE (Table 2),
