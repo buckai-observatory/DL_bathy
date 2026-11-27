@@ -34,7 +34,7 @@ learning models to estimate shallow-water bathymetry (water depth, 0-20 m)
 from Sentinel-2 multispectral imagery. Step 1 (`sdb split`) turns
 Sentinel-2 scenes and reference depth data into standardized,
 georeferenced training patches: it fetches Sentinel-2 L2A scenes over an
-AOI and time window via the `geoai-datacubes` package
+area of interest (AOI) and time window via the `geoai-datacubes` package
 [@moortgat2026geoaidatacubes] (or reads user-supplied pre-downloaded
 scenes), derives cloud and non-water masks from the L2A Scene
 Classification Layer (SCL), applies tidal correction via the EOT20 global
@@ -141,11 +141,13 @@ so that typos fail loudly. The package has four parts:
   repository.
 
 The heavy dependencies are optional extras, so `sdb split` installs and
-runs without PyTorch. The test suite runs on synthetic scenes in
-continuous integration on Linux and Windows, including an end-to-end
+runs without PyTorch, and a pixi lock file pins a tested environment for
+Linux, macOS and Windows. The test suite runs on synthetic scenes in
+continuous integration on all three systems, including an end-to-end
 `sdb split` and a one-epoch CPU `sdb train`, and needs no network
-access, tide model or GPU. The original `step1_splitting.py` and
-`step2_train_test.py` scripts remain as thin wrappers around the package.
+access, tide model or GPU. The demo notebook also runs in continuous
+integration. The original `step1_splitting.py` and `step2_train_test.py`
+scripts remain as thin wrappers around the package.
 
 # Research impact statement
 
