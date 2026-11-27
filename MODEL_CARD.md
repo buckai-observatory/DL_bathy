@@ -228,8 +228,14 @@ If you use these weights, please cite:
 
 ## Version history
 
-TODO — one bullet per HF Hub release, with training config deltas and
-new evaluation numbers.
+One entry per DL_bathy release, with the checkpoints that go with it.
 
-- `v0.1.0` — first public release, reproducing the setup used in
-  Hsu & Moortgat (2026).
+- `v0.2.0` (2026-11-26) — the first release with pretrained checkpoints: the
+  four DeepLabV3+ checkpoints described above, trained for Hsu & Moortgat
+  (2026) and on the Hugging Face Hub since 15 October 2026
+  (`BuckAIObservatory/dl-bathy-weights`, revision `v0.2.0`). ResNet-50 is the
+  default for inference; ConvNeXt-Large, the checkpoint at the repository
+  root, was the default before v0.2.0. The checkpoints were trained with the
+  old tide sign (see "Training configuration").
+- `v0.1.0` (2026-08-08) — first public release of the training code, with the
+  setup used in Hsu & Moortgat (2026). No checkpoints were released with it.

@@ -23,7 +23,7 @@ affiliations:
     index: 1
   - name: 'BuckAI Observatory, College of Arts and Sciences, The Ohio State University, Columbus, OH, USA'
     index: 2
-date: 2026-08-08
+date: 2026-11-26
 bibliography: paper.bib
 ---
 

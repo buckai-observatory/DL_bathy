@@ -9,6 +9,16 @@ uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 Anything landed on `main` since the last tagged release goes here until
 the next tag is cut.
 
+## `v0.2.0` — 2026-11-26
+
+First release since `v0.1.0`. DL_bathy is now an installable package with
+the `sdb` command and YAML configuration. Scenes are fetched with
+geoai-datacubes instead of Google Earth Engine, and tides come from pyTMD and
+EOT20 instead of DTU23. The four pretrained checkpoints are on the Hugging
+Face Hub, with an inference module, a model card and a demo notebook. Some of
+the fixes below change the training data and test metrics compared with
+`v0.1.0`.
+
 ### Added
 
 - **Documentation website** at <https://buckai-observatory.org/DL_bathy/>:
@@ -29,17 +39,16 @@ the next tag is cut.
   grids, and end-to-end `sdb split` + 1-epoch CPU `sdb train` on a tiny
   synthetic scene; CI now runs them on Linux (Python 3.10–3.12) and Windows,
   plus a job without PyTorch.
-- **Tide correction**: `TIDE_SOURCE` switch in `step1_splitting.py` — the
-  DTU23 Fortran tide model wrapper is replaced by `pyTMD` + EOT20 by
-  default, with `'custom'` (bring-your-own tide grids) and `'none'`
-  fallbacks.
+- **Tide correction**: the `TIDE_SOURCE` setting — the DTU23 Fortran tide
+  model wrapper is replaced by `pyTMD` + EOT20 by default, with `'custom'`
+  (bring-your-own tide grids) and `'none'` fallbacks.
 - **Inference-only path**: `inference.py`, `MODEL_CARD.md`, and
   `notebooks/dl_bathy_demo.ipynb` — run bathymetry prediction from
   Hugging Face Hub-hosted weights without retraining.
-- **Tiered dependency installs**: `requirements-test.txt` and
-  `requirements-inference.txt` alongside the existing `requirements.txt`,
-  so contributors only touching `losses.py` or `inference.py` skip the
-  GDAL / pyTMD / full training-stack install.
+- **Requirements files**: `requirements.txt` (the full pipeline),
+  `requirements-inference.txt` (inference only) and `requirements-test.txt`
+  (the package with the `train` and `dev` extras, as CI installs it), so
+  running inference or the tests does not need geoai-datacubes or pyTMD.
 - **`smoke-tests/`**: network-dependent, end-to-end scripts (not run in
   CI) covering environment checks and the full inference path against
   the public GBR demo AOI — the scripted equivalent of running
@@ -61,9 +70,18 @@ the next tag is cut.
   with Python 3.12. On pull requests that change the notebook or the code it
   calls, it runs against the pull request's code; monthly and on demand it
   runs the notebook unchanged, installing DL_bathy from GitHub as on Colab.
+- **`Draft PDF` workflow**: builds the JOSS paper PDF from `paper.md` and
+  `paper.bib` whenever either changes.
 
 ### Changed
 
+- **Scenes are fetched with geoai-datacubes** (`DATA_SOURCE:
+  geoai_datacubes`, the default): `sdb split` downloads Sentinel-2 L2A scenes
+  with their Scene Classification Layer over `AOI` and `TIME_RANGE` and masks
+  clouds and land with that layer, so no Google Earth Engine account or
+  manual download is needed. `DATA_SOURCE: local_scenes` reads downloaded
+  13-band scenes instead. `v0.1.0` read downloaded scenes and fetched the
+  cloud and water masks from Google Earth Engine.
 - **Random Forest baseline scope (issue #60)**: the README and `paper.md`
   state that the Random Forest baseline of Hsu & Moortgat (2026) is not part
   of DL_bathy, and `paper.md` no longer says the released code reproduces
@@ -82,10 +100,12 @@ the next tag is cut.
   the previous default, loads with `load_model(filename="deeplabv3_bathy_final.pth",
   encoder_name="tu-convnext_large")`. The README lists all four checkpoints.
   The training default (`Model_mode`) is unchanged.
-
 - The model weights moved to the BuckAI Observatory organization on Hugging Face:
   `inference.HF_DEFAULT_REPO_ID` is now `BuckAIObservatory/dl-bathy-weights`
   (the old `Amy5133/dl-bathy-weights` name redirects).
+- `losses.masked_sum_swf_and_count` defaults to `Z0=10.0`, the training
+  default, instead of 20.0 (issue #24). Training always passes the configured
+  value, so it is unaffected.
 
 ### Fixed
 
@@ -101,6 +121,14 @@ the next tag is cut.
   fetching anything, and the README and error message give EOT20's real
   layout (`<directory>/EOT20/ocean_tides/*_ocean_eot20.nc`, from
   `ocean_tides.zip` inside the SEANOE download).
+- **Issue #77**: with `TIDE_SOURCE: pytmd`, `sdb split` checks for pyTMD and
+  the EOT20 files before fetching any scene. If they are missing, it says how
+  to get them or how to skip the tide correction, instead of failing after
+  the download.
+- **Issue #14**: with `TIDE_SOURCE: pytmd`, the tide grid passed the scene's
+  projected coordinates (metres, e.g. UTM for every geoai-datacubes scene) to
+  pyTMD as longitude and latitude, so the tide heights were wrong. Pixel
+  centres are now reprojected to WGS84 first.
 - **Issue #58** (README gaps for new users): the README explains how to split
   the three rasters in `Ground_Truth.zip` into train / validation / test
   patches, and which device training runs on. `sdb split` with a missing
@@ -118,7 +146,17 @@ the next tag is cut.
   to one split (e.g. `train_ratio: 1.0`), since there is no leakage to prevent.
   Patch transforms no longer use the deprecated `Affine *` operator, and a patch
   without finite labels no longer warns about an empty slice.
-
+- **Issue #36**: `cloud_removal_counts.csv` gave the wrong date for
+  geoai-datacubes scenes and for every scene after a failed one, and its
+  `Cloud_Pixels_Removed` column counted all non-water pixels. Each row now has
+  its own scene's date, and the column is renamed `Non_water_pixels_masked`.
+- **Issue #56**: when the ground truth or the predictions had no test pixel
+  deeper than `depth_threshold`, `sdb train` printed precision, recall and F1
+  as 0.000. They are undefined then, so they are now NaN, printed as `n/a`
+  with a note saying why.
+- **Issue #34**: rerunning `sdb split` into the same `output_dir` augmented the
+  already-augmented patches again (`*_rot90_rot90.tif`, ...). Only the source
+  patches are augmented now.
 - **Issue #35**: `sdb split` exited with status 0 even when every scene
   failed, so the error only surfaced later as "No training patches found" in
   `sdb train`. It now prints a summary of found, failed and skipped scenes
@@ -150,6 +188,11 @@ the next tag is cut.
   `dl-bathy[inference,fetch]` from GitHub. Its maps used a 0 to 25 m colour
   scale for depths that are negative, and its metrics now cover only the
   0-20 m range the released weights were trained on.
+- **Issue #33**: without validation patches (as with the default
+  `val_ratio: 0.0`), `sdb train` never saved `best_model.pth` and stopped
+  after `earlystop_patience` epochs, so the test step then failed. It now
+  warns, steps the learning-rate scheduler on the training metric instead,
+  skips early stopping and saves the final model as `best_model.pth`.
 - `filter_valid_patches` no longer drops 13-band patches (without a mask band)
   because of an undefined variable.
 - README parameter tables now show the actual defaults (`strict_nan_filter`,
@@ -168,6 +211,11 @@ the next tag is cut.
   copy of this same inverted comparison in the test-set scoring loop was
   missed in the original fix and is now corrected too, so test metrics are
   computed on the same depth range the model was trained on.
+- **Issue #12**: the test metrics always left out pixels deeper than 20 m,
+  whatever `depth_threshold` was. The new `train` setting `test_depth_range`
+  (default `[-20, -0.01]`, the old range) sets the scored range, and
+  `prediction_metrics.csv` and `within3m_prediction_metrics.csv` record it in
+  the new `Eval_depth_min_m` and `Eval_depth_max_m` columns.
 - **Default depth range is 0–20 m again**: `depth_type` now defaults to
   `"shallow"` and `test_depth_range` to `[-20, -0.01]`. Before the #11 fix,
   the default `"deep"` actually trained on 0–20 m, which is what the paper
@@ -193,11 +241,11 @@ First public release, archived on Zenodo at
 
 - **Two-step training pipeline** for satellite-derived bathymetry from
   Sentinel-2 imagery.
-  - `step1_splitting.py` — Sentinel-2 acquisition (via
-    [`geoai-datacubes`](https://github.com/buckai-observatory/geoai-datacubes)
-    by default; local-scenes fallback), tidal correction, patch
-    generation, spatially-consistent train / val / test splits, class
-    balancing, and rotation / flip augmentation.
+  - `step1_splitting.py` — alignment of downloaded Sentinel-2 scenes with
+    the reference depths, cloud and water masks from Google Earth Engine,
+    tidal correction with the DTU23 model, patch generation,
+    spatially-consistent train / val / test splits, class balancing, and
+    rotation / flip augmentation.
   - `step2_train_test.py` — DeepLabV3+ training with a choice of
     encoder backbones (ConvNeXt-Large, EfficientNet-B4, ResNet-50/101),
     mask-aware losses (SSE / MAE / RPE / SWF / Huber), early stopping,
@@ -206,13 +254,12 @@ First public release, archived on Zenodo at
 - **Extracted loss module** — `losses.py` isolates the depth-weighted,
   validity-mask-aware loss functions so they can be unit-tested
   without the heavy geospatial dependencies used elsewhere. Unit
-  tests live in `tests/test_losses.py`.
+  tests live in `test_losses.py`.
 - **Public ground-truth subset** — `Ground_Truth.zip` ships the Great
   Barrier Reef bathymetric reference used by the demo path, so the
   training pipeline can be inspected end-to-end without needing
   proprietary LiDAR data.
-- **JOSS paper draft** — `paper.md` and `paper.bib`, plus the
-  `Draft PDF` GitHub Actions workflow.
+- **JOSS paper draft** — `paper.md` and `paper.bib`.
 - **Community-guideline files** — `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`, `CITATION.cff`, MIT `LICENSE`.
 
